@@ -86,6 +86,10 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private string? _errorMessage;
 
+    /// <summary>Whether the repo-picker ribbon (recent pills + open folder) is shown.</summary>
+    [ObservableProperty]
+    private bool _isRepoRibbonVisible;
+
     // --- Repository state ---------------------------------------------------
 
     [ObservableProperty]
@@ -212,6 +216,7 @@ public partial class MainWindowViewModel : ViewModelBase
             ReloadRecentRepositories();
 
             HasRepo = true;
+            IsRepoRibbonVisible = false; // collapse the picker once a repo is loaded
             await RefreshComparisonAsync();
         }
         catch (GitException ex)

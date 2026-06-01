@@ -10,6 +10,14 @@
         MinWidth="800" MinHeight="500"
         WindowState="Maximized">
 
+ <Window.Styles>
+   <!-- Rounded "pill" buttons used in the repo-picker ribbon. -->
+   <Style Selector="Button.pill">
+     <Setter Property="CornerRadius" Value="14" />
+     <Setter Property="Padding" Value="12,5" />
+   </Style>
+ </Window.Styles>
+
  <Panel>
   <DockPanel LastChildFill="True">
 
@@ -22,7 +30,21 @@
 
       <Grid Margin="16,8" ColumnDefinitions="*,Auto">
 
-       <Panel Grid.Column="0">
+       <DockPanel Grid.Column="0" LastChildFill="True">
+
+        <!-- Repo picker toggle: reveals the recent-repos ribbon below the bar. -->
+        <ToggleButton DockPanel.Dock="Left"
+                      IsChecked="{Binding IsRepoRibbonVisible}"
+                      VerticalAlignment="Center"
+                      Margin="0,0,12,0"
+                      Padding="12,5">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="Repo" />
+            <TextBlock Text="▾" FontSize="10" Opacity="0.7" VerticalAlignment="Center" />
+          </StackPanel>
+        </ToggleButton>
+
+        <Panel>
 
         <!-- No repo: just branding -->
         <TextBlock Text="{Binding Title}"
@@ -78,10 +100,10 @@
             <TextBlock Text="{Binding ResolvedTargetLabel}" FontWeight="SemiBold" VerticalAlignment="Center" />
           </StackPanel>
 
-          <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="0,0,6,0" VerticalAlignment="Center" />
-          <Button Content="Open…" Command="{Binding OpenRepositoryCommand}" VerticalAlignment="Center" />
+          <Button Content="Refresh" Command="{Binding RefreshCommand}" VerticalAlignment="Center" />
         </WrapPanel>
        </Panel>
+       </DockPanel>
 
        <!-- Theme selector: always available (FR-28) -->
        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="12,0,0,0">
@@ -95,6 +117,54 @@
          </ComboBox>
        </StackPanel>
       </Grid>
+    </Border>
+
+    <!-- Repo-picker ribbon: open-folder action + recent-repo pills (FR-1, FR-3..4). -->
+    <Border DockPanel.Dock="Top"
+            IsVisible="{Binding IsRepoRibbonVisible}"
+            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+            BorderThickness="0,0,0,1"
+            Padding="16,12">
+      <StackPanel Spacing="10">
+
+        <Button Command="{Binding OpenRepositoryCommand}"
+                Classes="pill"
+                FontWeight="SemiBold"
+                HorizontalAlignment="Left">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="📂" />
+            <TextBlock Text="Open folder…" />
+          </StackPanel>
+        </Button>
+
+        <StackPanel Spacing="6" IsVisible="{Binding HasRecentRepositories}">
+          <TextBlock Text="Recent" FontSize="11" Opacity="0.6" />
+          <ItemsControl ItemsSource="{Binding RecentRepositories}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:RecentRepositoryViewModel">
+                <Button Classes="pill"
+                        Command="{Binding OpenCommand}"
+                        Margin="0,0,8,8"
+                        ToolTip.Tip="{Binding Path}">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                    <TextBlock Text="missing" FontSize="10" Foreground="#FFE57373"
+                               VerticalAlignment="Center"
+                               IsVisible="{Binding !DirectoryExists}" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
+      </StackPanel>
     </Border>
 
     <!-- Status bar -->
