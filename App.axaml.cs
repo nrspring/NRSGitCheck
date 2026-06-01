@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
+using NRSGitCheck.Services;
 using NRSGitCheck.ViewModels;
 using NRSGitCheck.Views;
 
@@ -40,6 +41,9 @@ public partial class App : Application
     /// </summary>
     private static void ConfigureServices(IServiceCollection services)
     {
+        // Services
+        services.AddSingleton<ISettingsService>(_ => new SettingsService(SettingsService.DefaultFilePath));
+
         // Views
         services.AddTransient<MainWindow>();
 

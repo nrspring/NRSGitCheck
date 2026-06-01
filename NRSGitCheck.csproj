@@ -10,6 +10,15 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
 
+  <!-- The test project lives in a subfolder; keep its sources out of the app build. -->
+  <ItemGroup>
+    <Compile Remove="NRSGitCheck.Tests\**" />
+    <AvaloniaResource Remove="NRSGitCheck.Tests\**" />
+    <AvaloniaXaml Remove="NRSGitCheck.Tests\**" />
+    <EmbeddedResource Remove="NRSGitCheck.Tests\**" />
+    <None Remove="NRSGitCheck.Tests\**" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.0.4" />
     <PackageReference Include="Avalonia.Desktop" Version="12.0.4" />
