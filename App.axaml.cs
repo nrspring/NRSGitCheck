@@ -43,6 +43,8 @@ public partial class App : Application
     {
         // Services
         services.AddSingleton<ISettingsService>(_ => new SettingsService(SettingsService.DefaultFilePath));
+        services.AddSingleton<IGitService, GitService>();
+        services.AddSingleton<IFolderPickerService, FolderPickerService>();
 
         // Views
         services.AddTransient<MainWindow>();

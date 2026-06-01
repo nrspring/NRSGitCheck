@@ -27,11 +27,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Phase 0 foundation: MVVM base + DI composition root.
-         LibGit2Sharp (Phase 2) and AvaloniaEdit/TextMate (Phase 5/6) are added
-         in the phases that introduce them. -->
+    <!-- Phase 0 foundation: MVVM base + DI composition root. -->
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+    <!-- Phase 2: read-only Git access. AvaloniaEdit/TextMate (Phase 5/6) added later. -->
+    <PackageReference Include="LibGit2Sharp" Version="0.30.0" />
   </ItemGroup>
 
 </Project>

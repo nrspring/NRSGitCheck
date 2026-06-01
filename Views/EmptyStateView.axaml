@@ -1,0 +1,86 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NRSGitCheck.ViewModels"
+             x:Class="NRSGitCheck.Views.EmptyStateView"
+             x:DataType="vm:MainWindowViewModel">
+
+  <Grid RowDefinitions="*,Auto,*" ColumnDefinitions="*,Auto,*">
+
+    <StackPanel Grid.Row="1" Grid.Column="1"
+                Width="480"
+                Spacing="14"
+                HorizontalAlignment="Center">
+
+      <TextBlock Text="NRSGitCheck"
+                 FontSize="28"
+                 FontWeight="SemiBold"
+                 HorizontalAlignment="Center" />
+
+      <TextBlock Text="Open a Git repository to review your working-tree changes."
+                 Opacity="0.75"
+                 TextWrapping="Wrap"
+                 TextAlignment="Center"
+                 HorizontalAlignment="Center" />
+
+      <Button Content="Open Repository…"
+              Command="{Binding OpenRepositoryCommand}"
+              HorizontalAlignment="Center"
+              Padding="18,8"
+              Margin="0,4,0,0" />
+
+      <!-- Inline, non-blocking error for invalid folders (FR-2). -->
+      <Border IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+              Background="#33D32F2F"
+              BorderBrush="#80D32F2F"
+              BorderThickness="1"
+              CornerRadius="4"
+              Padding="12,8">
+        <TextBlock Text="{Binding ErrorMessage}"
+                   TextWrapping="Wrap"
+                   Foreground="#FFE57373" />
+      </Border>
+
+      <!-- Recent repositories (FR-3..5). -->
+      <TextBlock Text="Recent"
+                 FontWeight="SemiBold"
+                 Margin="0,8,0,0"
+                 IsVisible="{Binding HasRecentRepositories}" />
+
+      <ItemsControl ItemsSource="{Binding RecentRepositories}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:RecentRepositoryViewModel">
+            <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+              <Button Grid.Column="0"
+                      Command="{Binding OpenCommand}"
+                      HorizontalAlignment="Stretch"
+                      HorizontalContentAlignment="Left"
+                      Background="Transparent"
+                      Padding="10,6">
+                <StackPanel Spacing="1">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                    <Border Background="#33D32F2F" CornerRadius="3" Padding="5,0"
+                            VerticalAlignment="Center"
+                            IsVisible="{Binding !DirectoryExists}">
+                      <TextBlock Text="missing" FontSize="11" Foreground="#FFE57373" />
+                    </Border>
+                  </StackPanel>
+                  <TextBlock Text="{Binding Path}" FontSize="11" Opacity="0.6" />
+                </StackPanel>
+              </Button>
+              <Button Grid.Column="1"
+                      Command="{Binding RemoveCommand}"
+                      Content="✕"
+                      Background="Transparent"
+                      ToolTip.Tip="Remove from history"
+                      VerticalAlignment="Center"
+                      Padding="8,4" />
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+    </StackPanel>
+  </Grid>
+
+</UserControl>

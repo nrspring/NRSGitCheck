@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:NRSGitCheck.ViewModels"
+        xmlns:views="using:NRSGitCheck.Views"
         x:Class="NRSGitCheck.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="{Binding Title}"
@@ -10,20 +11,76 @@
 
   <DockPanel LastChildFill="True">
 
-    <!-- Top bar: repo / target / view toggles get added here in later phases. -->
+    <!-- Top bar -->
     <Border DockPanel.Dock="Top"
             Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
             BorderThickness="0,0,0,1"
-            Height="48">
-      <TextBlock Text="{Binding Title}"
-                 VerticalAlignment="Center"
-                 Margin="16,0"
-                 FontSize="15"
-                 FontWeight="SemiBold" />
+            MinHeight="48">
+
+      <Panel Margin="16,8">
+
+        <!-- No repo: just branding -->
+        <TextBlock Text="{Binding Title}"
+                   VerticalAlignment="Center"
+                   FontSize="15"
+                   FontWeight="SemiBold"
+                   IsVisible="{Binding !HasRepo}" />
+
+        <!-- Repo open: repo / branch / comparison target controls -->
+        <WrapPanel Orientation="Horizontal"
+                   VerticalAlignment="Center"
+                   IsVisible="{Binding HasRepo}">
+
+          <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,16,0" VerticalAlignment="Center">
+            <TextBlock Text="{Binding RepositoryName}" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <TextBlock Text="on" Opacity="0.6" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding CurrentBranch}" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding HeadShortSha}" Opacity="0.6" FontFamily="Cascadia Code,Consolas,monospace" VerticalAlignment="Center" />
+          </StackPanel>
+
+          <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,12,0" VerticalAlignment="Center">
+            <TextBlock Text="Compare against" Opacity="0.6" VerticalAlignment="Center" />
+            <ComboBox ItemsSource="{Binding ComparisonModes}"
+                      SelectedItem="{Binding SelectedMode}"
+                      MinWidth="180"
+                      VerticalAlignment="Center">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:ComparisonModeOption">
+                  <TextBlock Text="{Binding Label}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <AutoCompleteBox ItemsSource="{Binding LocalBranches}"
+                             Text="{Binding SelectedBranch, Mode=TwoWay}"
+                             PlaceholderText="branch…"
+                             MinWidth="170"
+                             FilterMode="ContainsOrdinal"
+                             VerticalAlignment="Center"
+                             IsVisible="{Binding IsOtherBranchMode}" />
+
+            <AutoCompleteBox ItemsSource="{Binding LocalBranches}"
+                             Text="{Binding ParentBranch, Mode=TwoWay}"
+                             PlaceholderText="parent branch…"
+                             MinWidth="170"
+                             FilterMode="ContainsOrdinal"
+                             VerticalAlignment="Center"
+                             IsVisible="{Binding IsBranchBaseMode}" />
+          </StackPanel>
+
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="0,0,12,0">
+            <TextBlock Text="→" Opacity="0.6" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding ResolvedTargetLabel}" FontWeight="SemiBold" VerticalAlignment="Center" />
+          </StackPanel>
+
+          <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="0,0,6,0" VerticalAlignment="Center" />
+          <Button Content="Open…" Command="{Binding OpenRepositoryCommand}" VerticalAlignment="Center" />
+        </WrapPanel>
+      </Panel>
     </Border>
 
-    <!-- Status bar: comparison summary / shortcut hints get added in later phases. -->
+    <!-- Status bar -->
     <Border DockPanel.Dock="Bottom"
             Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
@@ -36,8 +93,22 @@
                  Opacity="0.8" />
     </Border>
 
-    <!-- Content area: empty-state panel / file list + diff pane fill this region. -->
-    <Panel Name="ContentRoot" />
+    <!-- Content -->
+    <Panel Name="ContentRoot">
+      <views:EmptyStateView IsVisible="{Binding !HasRepo}" />
+
+      <!-- Phase 3 fills this with the changed-files list + diff pane. -->
+      <StackPanel IsVisible="{Binding HasRepo}"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center"
+                  Spacing="8"
+                  MaxWidth="640">
+        <TextBlock Text="{Binding RepositoryName}" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" />
+        <TextBlock Text="{Binding Status}" Opacity="0.75" TextAlignment="Center" TextWrapping="Wrap" />
+        <TextBlock Text="The changed-files list and diff view arrive in Phase 3."
+                   Opacity="0.45" FontSize="12" HorizontalAlignment="Center" Margin="0,8,0,0" />
+      </StackPanel>
+    </Panel>
 
   </DockPanel>
 
