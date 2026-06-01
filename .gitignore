@@ -1,0 +1,127 @@
+## ----------------------
+## .NET / Visual Studio
+## ----------------------
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio cache/options directory
+.vs/
+
+# MSBuild / Roslyn
+*.binlog
+*.tlog
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Build / publish output
+publish/
+[Pp]ublish[Pp]rofiles/*.user
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# Rider / JetBrains
+.idea/
+*.sln.iml
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+## ----------------------
+## NuGet
+## ----------------------
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+.nuget/
+
+## ----------------------
+## Test results / coverage
+## ----------------------
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+coverage*.info
+TestResults/
+
+## ----------------------
+## Avalonia
+## ----------------------
+
+# Avalonia XAML compiled output is placed in obj/ (already ignored above).
+# Generated AvaloniaResource / temp files
+*.avalonia/
+.avalonia/
+
+# Avalonia previewer temp
+*.received.*
+
+## ----------------------
+## Misc
+## ----------------------
+*.cache
+*.ilk
+*.meta
+*.obj
+*.iobj
+*.pch
+*.pdb
+*.ipdb
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.tmp
+*.tmp_proj
+*_wpftmp.csproj
+*.log
+*.vspscc
+*.vssscc
+.builds
+*.pidb
+*.svclog
+*.scc
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# User secrets / local settings
+secrets.json
+appsettings.*.local.json
+*.local.user
