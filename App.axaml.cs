@@ -52,5 +52,6 @@ public partial class App : Application
 
         // View models
         services.AddTransient<MainWindowViewModel>();
+        services.AddTransient<DiffViewModel>();
     }
 }

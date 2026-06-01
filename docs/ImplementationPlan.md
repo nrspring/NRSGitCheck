@@ -127,12 +127,16 @@ Each phase is independently runnable so progress is visible early.
   CRLF/encoding edge cases.
 
 ### Phase 5 — Diff view rendering (FR-18..22)
-- `DiffView` using AvaloniaEdit with custom line transformers:
+> Decision (Phase 5): rendered with a **custom virtualized control**, not
+> AvaloniaEdit. A read-only diff with dual gutters and word runs is cleaner this
+> way, and side-by-side becomes a single virtualized list of two-sided rows (no
+> two-editor scroll sync). Phase 6 syntax highlighting uses TextMateSharp directly.
+- `DiffView` backed by virtualized `ListBox`es of row view models:
   - Background colorization per line kind; gutter line numbers for old & new.
-  - **Side-by-side** (two synchronized editors) and **inline/unified** (single
-    editor) layouts, toggleable (FR-19).
-  - Word-level highlight overlay on modified lines in both layouts.
-  - Hunk separators; virtualization for large files (NFR-1).
+  - **Side-by-side** (one list, each row holds both sides) and **inline/unified**
+    (one list) layouts, toggleable (FR-19), persisted to settings.
+  - Word-level highlight runs on modified lines in both layouts.
+  - Hunk separators; `ListBox` virtualization for large files (NFR-1).
 - **Exit check:** both layouts render correctly with decorations + word spans.
 
 ### Phase 6 — Syntax highlighting (FR-20)

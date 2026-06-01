@@ -1,0 +1,147 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NRSGitCheck.ViewModels"
+             xmlns:conv="using:NRSGitCheck.Converters"
+             x:Class="NRSGitCheck.Views.DiffView"
+             x:DataType="vm:DiffViewModel">
+
+  <UserControl.Resources>
+    <FontFamily x:Key="MonoFont">Cascadia Code, Consolas, Menlo, monospace</FontFamily>
+
+    <ItemsPanelTemplate x:Key="HorizontalPanel">
+      <StackPanel Orientation="Horizontal" />
+    </ItemsPanelTemplate>
+
+    <!-- One word-level run: highlighted background for changed words (FR-23). -->
+    <DataTemplate x:Key="SegmentTemplate" x:DataType="vm:RenderSegment">
+      <Border Background="{Binding Converter={x:Static conv:SegmentBrushConverter.Instance}}">
+        <TextBlock Text="{Binding Text}" FontFamily="{StaticResource MonoFont}" FontSize="12.5" TextWrapping="NoWrap" />
+      </Border>
+    </DataTemplate>
+  </UserControl.Resources>
+
+  <UserControl.Styles>
+    <!-- Strip ListBox selection chrome; diff rows are read-only. -->
+    <Style Selector="ListBox.diff > ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+    </Style>
+    <Style Selector="ListBox.diff > ListBoxItem:selected /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.diff > ListBoxItem:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="TextBlock.gutter">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="Width" Value="44" />
+      <Setter Property="Opacity" Value="0.5" />
+      <Setter Property="TextAlignment" Value="Right" />
+      <Setter Property="Padding" Value="0,0,8,0" />
+    </Style>
+  </UserControl.Styles>
+
+  <Panel>
+
+    <!-- Empty / binary / too-large / no-changes message -->
+    <TextBlock Text="{Binding Message}"
+               Opacity="0.55"
+               HorizontalAlignment="Center" VerticalAlignment="Center"
+               IsVisible="{Binding ShowMessage}" />
+
+    <!-- Rendered diff -->
+    <Grid IsVisible="{Binding ShowDiff}" RowDefinitions="Auto,*">
+
+      <!-- Header: filename + layout toggle + legend -->
+      <Border Grid.Row="0"
+              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+              BorderThickness="0,0,0,1"
+              Padding="8,6">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Grid.Column="0" Text="{Binding FileName}" FontWeight="SemiBold" VerticalAlignment="Center" />
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+            <Border Background="#3328A745" CornerRadius="2" Padding="6,1"><TextBlock Text="added" FontSize="11" /></Border>
+            <Border Background="#33E05252" CornerRadius="2" Padding="6,1"><TextBlock Text="removed" FontSize="11" /></Border>
+            <Button Content="Inline view" Command="{Binding ToggleLayoutCommand}" IsVisible="{Binding IsSideBySide}" Padding="10,3" />
+            <Button Content="Side-by-side view" Command="{Binding ToggleLayoutCommand}" IsVisible="{Binding IsInline}" Padding="10,3" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- Inline / unified -->
+      <ListBox Grid.Row="1"
+               Classes="diff"
+               ItemsSource="{Binding InlineRows}"
+               Background="Transparent"
+               BorderThickness="0"
+               IsVisible="{Binding IsInline}">
+        <ListBox.DataTemplates>
+          <DataTemplate DataType="vm:HunkSeparatorRow">
+            <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" Padding="8,2">
+              <TextBlock Text="{Binding Header}" FontFamily="{StaticResource MonoFont}" FontSize="11" Opacity="0.6" />
+            </Border>
+          </DataTemplate>
+          <DataTemplate DataType="vm:InlineDiffRow">
+            <Grid ColumnDefinitions="44,44,14,*"
+                  Background="{Binding Kind, Converter={x:Static conv:DiffLineKindToBackgroundConverter.Instance}}">
+              <TextBlock Grid.Column="0" Classes="gutter" Text="{Binding OldNumber}" />
+              <TextBlock Grid.Column="1" Classes="gutter" Text="{Binding NewNumber}" />
+              <TextBlock Grid.Column="2" Text="{Binding Marker}" FontFamily="{StaticResource MonoFont}" FontSize="12.5"
+                         TextAlignment="Center" Opacity="0.7" />
+              <ItemsControl Grid.Column="3"
+                            ItemsSource="{Binding Segments}"
+                            ItemsPanel="{StaticResource HorizontalPanel}"
+                            ItemTemplate="{StaticResource SegmentTemplate}" />
+            </Grid>
+          </DataTemplate>
+        </ListBox.DataTemplates>
+      </ListBox>
+
+      <!-- Side-by-side -->
+      <ListBox Grid.Row="1"
+               Classes="diff"
+               ItemsSource="{Binding SideRows}"
+               Background="Transparent"
+               BorderThickness="0"
+               IsVisible="{Binding IsSideBySide}">
+        <ListBox.DataTemplates>
+          <DataTemplate DataType="vm:HunkSeparatorRow">
+            <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" Padding="8,2">
+              <TextBlock Text="{Binding Header}" FontFamily="{StaticResource MonoFont}" FontSize="11" Opacity="0.6" />
+            </Border>
+          </DataTemplate>
+          <DataTemplate DataType="vm:SideDiffRow">
+            <Grid ColumnDefinitions="*,1,*">
+              <Border Grid.Column="0"
+                      Background="{Binding Left, Converter={x:Static conv:SideCellBackgroundConverter.Instance}}">
+                <Grid ColumnDefinitions="44,*">
+                  <TextBlock Grid.Column="0" Classes="gutter" Text="{Binding Left.Number}" />
+                  <ItemsControl Grid.Column="1"
+                                ItemsSource="{Binding Left.Segments}"
+                                ItemsPanel="{StaticResource HorizontalPanel}"
+                                ItemTemplate="{StaticResource SegmentTemplate}" />
+                </Grid>
+              </Border>
+
+              <Border Grid.Column="1" Background="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+
+              <Border Grid.Column="2"
+                      Background="{Binding Right, Converter={x:Static conv:SideCellBackgroundConverter.Instance}}">
+                <Grid ColumnDefinitions="44,*">
+                  <TextBlock Grid.Column="0" Classes="gutter" Text="{Binding Right.Number}" />
+                  <ItemsControl Grid.Column="1"
+                                ItemsSource="{Binding Right.Segments}"
+                                ItemsPanel="{StaticResource HorizontalPanel}"
+                                ItemTemplate="{StaticResource SegmentTemplate}" />
+                </Grid>
+              </Border>
+            </Grid>
+          </DataTemplate>
+        </ListBox.DataTemplates>
+      </ListBox>
+
+    </Grid>
+  </Panel>
+
+</UserControl>

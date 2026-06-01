@@ -13,6 +13,9 @@ public sealed class FileChangeViewModel : ViewModelBase
 
     public FileChangeViewModel(FileChange model) => _model = model;
 
+    /// <summary>The underlying change, used to build the diff.</summary>
+    public FileChange Model => _model;
+
     public string Path => _model.Path;
     public ChangeKind Kind => _model.Kind;
     public string? OldPath => _model.OldPath;

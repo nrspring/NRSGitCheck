@@ -49,7 +49,7 @@ uncommitted (modified, added, deleted, untracked) files.
 | UI framework | **Avalonia 12** (Fluent theme, Inter font) — already established in the project. |
 | Runtime | **.NET 10** (`net10.0`), `WinExe`. |
 | Git access | **LibGit2Sharp** — native managed Git library; no dependency on a system `git` install. |
-| Diff/editor control | **AvaloniaEdit** with **TextMate** grammars for syntax highlighting. |
+| Diff/editor control | **Custom virtualized diff control** for rendering (decided in Phase 5; gives precise control of side-by-side alignment, dual gutters, and word-level runs). Syntax highlighting uses **TextMateSharp** tokenization directly (Phase 6). |
 | Settings storage | **Local JSON file** under the user's AppData folder. |
 | Architecture | MVVM (Avalonia compiled bindings are already enabled). |
 

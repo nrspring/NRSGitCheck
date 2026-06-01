@@ -20,15 +20,26 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly IGitService _git;
     private readonly IFolderPickerService _folderPicker;
 
-    public MainWindowViewModel(ISettingsService settings, IGitService git, IFolderPickerService folderPicker)
+    public MainWindowViewModel(
+        ISettingsService settings,
+        IGitService git,
+        IFolderPickerService folderPicker,
+        DiffViewModel diff)
     {
         _settings = settings;
         _git = git;
         _folderPicker = folderPicker;
+        Diff = diff;
 
         _selectedMode = ComparisonModes.FirstOrDefault(o => o.Mode == settings.Settings.LastComparisonMode)
                         ?? ComparisonModes[0];
     }
+
+    /// <summary>The diff view model for the selected file.</summary>
+    public DiffViewModel Diff { get; }
+
+    /// <summary>The resolved base commit SHA for the current comparison, if any.</summary>
+    private string? _currentBaseSha;
 
     // --- Shell chrome -------------------------------------------------------
 
@@ -213,11 +224,13 @@ public partial class MainWindowViewModel : ViewModelBase
 
             if (resolved.Found && resolved.Sha is { } sha)
             {
+                _currentBaseSha = sha;
                 var changes = await Task.Run(() => _git.GetChanges(sha));
                 PopulateFiles(changes);
             }
             else
             {
+                _currentBaseSha = null;
                 ClearFiles();
             }
 
@@ -236,6 +249,14 @@ public partial class MainWindowViewModel : ViewModelBase
         _allFiles = changes.Select(c => new FileChangeViewModel(c)).ToList();
         SelectedFile = null;
         ApplyFilter();
+    }
+
+    partial void OnSelectedFileChanged(FileChangeViewModel? value)
+    {
+        if (value is null || _currentBaseSha is null)
+            Diff.Clear();
+        else
+            _ = Diff.LoadAsync(_currentBaseSha, value.Model);
     }
 
     private void ClearFiles()

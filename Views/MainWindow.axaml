@@ -157,29 +157,8 @@
         <GridSplitter Grid.Column="1" Width="4" ResizeDirection="Columns"
                       Background="{DynamicResource SystemControlForegroundBaseLowBrush}" />
 
-        <!-- Right: selected-file detail (the diff view replaces this in Phase 5) -->
-        <Panel Grid.Column="2" Margin="8">
-          <TextBlock Text="Select a file to view its changes."
-                     Opacity="0.5"
-                     HorizontalAlignment="Center" VerticalAlignment="Center"
-                     IsVisible="{Binding SelectedFile, Converter={x:Static ObjectConverters.IsNull}}" />
-
-          <StackPanel Margin="8" Spacing="6"
-                      IsVisible="{Binding SelectedFile, Converter={x:Static ObjectConverters.IsNotNull}}">
-            <TextBlock Text="{Binding SelectedFile.FileName}" FontSize="18" FontWeight="SemiBold" />
-            <TextBlock Text="{Binding SelectedFile.Path}" Opacity="0.6" FontSize="12" />
-            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,4,0,0">
-              <TextBlock Text="{Binding SelectedFile.BadgeText}" FontWeight="Bold" />
-              <TextBlock Text="{Binding SelectedFile.AddedText}" Foreground="#4CAF50"
-                         IsVisible="{Binding SelectedFile.HasCounts}" />
-              <TextBlock Text="{Binding SelectedFile.DeletedText}" Foreground="#E05252"
-                         IsVisible="{Binding SelectedFile.HasCounts}" />
-              <TextBlock Text="binary file" Opacity="0.6" IsVisible="{Binding SelectedFile.IsBinary}" />
-            </StackPanel>
-            <TextBlock Text="The side-by-side / inline diff arrives in Phase 5."
-                       Opacity="0.45" FontSize="12" Margin="0,12,0,0" />
-          </StackPanel>
-        </Panel>
+        <!-- Right: the diff view for the selected file -->
+        <views:DiffView Grid.Column="2" DataContext="{Binding Diff}" />
       </Grid>
     </Panel>
 
