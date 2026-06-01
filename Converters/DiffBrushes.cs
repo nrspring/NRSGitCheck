@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using Avalonia;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
 using NRSGitCheck.Models;
@@ -51,6 +53,45 @@ public sealed class SideCellBackgroundConverter : IValueConverter
             DiffLineKind.Removed => DiffPalette.RemovedLine,
             _ => DiffPalette.Transparent,
         };
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
+/// Maps a <see cref="RenderSegment"/>'s hex foreground to a cached brush (FR-20).
+/// Returns <see cref="AvaloniaProperty.UnsetValue"/> when there is no syntax color,
+/// so the text falls back to the theme's default foreground.
+/// </summary>
+public sealed class SegmentForegroundConverter : IValueConverter
+{
+    public static readonly SegmentForegroundConverter Instance = new();
+
+    private static readonly Dictionary<string, IBrush> Cache = new();
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is not RenderSegment { Foreground: { } hex } || string.IsNullOrEmpty(hex))
+            return AvaloniaProperty.UnsetValue;
+
+        lock (Cache)
+        {
+            if (Cache.TryGetValue(hex, out var brush))
+                return brush;
+
+            try
+            {
+                brush = new SolidColorBrush(Color.Parse(hex));
+            }
+            catch (FormatException)
+            {
+                return AvaloniaProperty.UnsetValue;
+            }
+
+            Cache[hex] = brush;
+            return brush;
+        }
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>

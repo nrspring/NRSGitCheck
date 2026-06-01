@@ -10,14 +10,18 @@ namespace NRSGitCheck.ViewModels;
 /// </summary>
 public sealed class RenderSegment
 {
-    public RenderSegment(string text, WordSegmentKind highlight)
+    public RenderSegment(string text, WordSegmentKind highlight, string? foreground)
     {
         Text = text;
         Highlight = highlight;
+        Foreground = foreground;
     }
 
     public string Text { get; }
     public WordSegmentKind Highlight { get; }
+
+    /// <summary>Syntax-highlight foreground as a hex string, or null for the default color (FR-20).</summary>
+    public string? Foreground { get; }
 }
 
 /// <summary>Separator row carrying a hunk header (e.g. <c>@@ -1,4 +1,6 @@</c>).</summary>

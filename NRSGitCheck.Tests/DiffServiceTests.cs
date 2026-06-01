@@ -32,7 +32,7 @@ public sealed class DiffServiceTests
     [Fact]
     public void Binary_change_short_circuits_without_calling_engine()
     {
-        var svc = new DiffService(new StubGitService(new FileContent("", "", true)));
+        var svc = new DiffService(new StubGitService(new FileContent("", "", true)), new NullSyntaxHighlighter());
 
         var doc = svc.BuildDiff("base", Change(ChangeKind.Modified, isBinary: true));
 
@@ -43,7 +43,7 @@ public sealed class DiffServiceTests
     [Fact]
     public void Binary_detected_during_retrieval_is_reported()
     {
-        var svc = new DiffService(new StubGitService(new FileContent("", "", true)));
+        var svc = new DiffService(new StubGitService(new FileContent("", "", true)), new NullSyntaxHighlighter());
 
         var doc = svc.BuildDiff("base", Change(ChangeKind.Modified));
 
@@ -54,7 +54,7 @@ public sealed class DiffServiceTests
     public void Oversized_file_is_flagged_too_large()
     {
         var huge = string.Join("\n", System.Linq.Enumerable.Range(0, 25_000));
-        var svc = new DiffService(new StubGitService(new FileContent("", huge, false)));
+        var svc = new DiffService(new StubGitService(new FileContent("", huge, false)), new NullSyntaxHighlighter());
 
         var doc = svc.BuildDiff("base", Change(ChangeKind.Added));
 
@@ -65,7 +65,7 @@ public sealed class DiffServiceTests
     [Fact]
     public void Text_change_is_diffed()
     {
-        var svc = new DiffService(new StubGitService(new FileContent("a\nb\n", "a\nB\n", false)));
+        var svc = new DiffService(new StubGitService(new FileContent("a\nb\n", "a\nB\n", false)), new NullSyntaxHighlighter());
 
         var doc = svc.BuildDiff("base", Change(ChangeKind.Modified));
 

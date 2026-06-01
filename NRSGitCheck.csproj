@@ -30,8 +30,11 @@
     <!-- Phase 0 foundation: MVVM base + DI composition root. -->
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
-    <!-- Phase 2: read-only Git access. AvaloniaEdit/TextMate (Phase 5/6) added later. -->
+    <!-- Phase 2: read-only Git access. -->
     <PackageReference Include="LibGit2Sharp" Version="0.30.0" />
+    <!-- Phase 6: syntax highlighting via direct TextMate tokenization. -->
+    <PackageReference Include="TextMateSharp" Version="2.0.3" />
+    <PackageReference Include="TextMateSharp.Grammars" Version="2.0.3" />
   </ItemGroup>
 
 </Project>

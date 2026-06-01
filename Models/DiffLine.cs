@@ -44,4 +44,7 @@ public sealed class DiffLine
 
     /// <summary>Word-level segments when this line belongs to a modified pair; otherwise null.</summary>
     public IReadOnlyList<WordSegment>? Segments { get; set; }
+
+    /// <summary>Syntax-highlight foreground spans over <see cref="Text"/>; null when unavailable (FR-20).</summary>
+    public IReadOnlyList<ColorSpan>? Foreground { get; set; }
 }

@@ -15,7 +15,9 @@
     <!-- One word-level run: highlighted background for changed words (FR-23). -->
     <DataTemplate x:Key="SegmentTemplate" x:DataType="vm:RenderSegment">
       <Border Background="{Binding Converter={x:Static conv:SegmentBrushConverter.Instance}}">
-        <TextBlock Text="{Binding Text}" FontFamily="{StaticResource MonoFont}" FontSize="12.5" TextWrapping="NoWrap" />
+        <TextBlock Text="{Binding Text}"
+                   Foreground="{Binding Converter={x:Static conv:SegmentForegroundConverter.Instance}}"
+                   FontFamily="{StaticResource MonoFont}" FontSize="12.5" TextWrapping="NoWrap" />
       </Border>
     </DataTemplate>
   </UserControl.Resources>

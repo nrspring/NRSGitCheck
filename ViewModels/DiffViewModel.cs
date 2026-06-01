@@ -197,11 +197,50 @@ public partial class DiffViewModel : ViewModelBase
         Segments = ToSegments(line),
     };
 
+    /// <summary>
+    /// Combines the two independent segmentations of a line — word-level diff
+    /// (background) and syntax tokens (foreground) — into render runs that are
+    /// constant in both (FR-20, FR-23).
+    /// </summary>
     private static IReadOnlyList<RenderSegment> ToSegments(DiffLine line)
     {
-        if (line.Segments is { } segments)
-            return segments.Select(s => new RenderSegment(s.Text, s.Kind)).ToList();
+        var text = line.Text;
+        if (text.Length == 0)
+            return new[] { new RenderSegment(string.Empty, WordSegmentKind.Unchanged, null) };
 
-        return new[] { new RenderSegment(line.Text, WordSegmentKind.Unchanged) };
+        var kinds = new WordSegmentKind[text.Length];
+        if (line.Segments is { } segs)
+        {
+            var pos = 0;
+            foreach (var s in segs)
+                for (var k = 0; k < s.Text.Length && pos < text.Length; k++, pos++)
+                    kinds[pos] = s.Kind;
+        }
+
+        var colors = new string?[text.Length];
+        if (line.Foreground is { } spans)
+        {
+            foreach (var span in spans)
+            {
+                if (span.Foreground is null)
+                    continue;
+                var end = Math.Min(span.Start + span.Length, text.Length);
+                for (var k = Math.Max(0, span.Start); k < end; k++)
+                    colors[k] = span.Foreground;
+            }
+        }
+
+        var result = new List<RenderSegment>();
+        var i = 0;
+        while (i < text.Length)
+        {
+            var j = i + 1;
+            while (j < text.Length && kinds[j] == kinds[i] && colors[j] == colors[i])
+                j++;
+            result.Add(new RenderSegment(text.Substring(i, j - i), kinds[i], colors[i]));
+            i = j;
+        }
+
+        return result;
     }
 }

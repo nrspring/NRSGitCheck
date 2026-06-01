@@ -68,7 +68,7 @@ public static class DiffEngine
     /// Splits into logical lines, normalizing CRLF/CR to LF so a line-ending-only
     /// change does not register as a difference (FR: CRLF/encoding handling).
     /// </summary>
-    private static string[] SplitLines(string text)
+    internal static string[] SplitLines(string text)
     {
         if (string.IsNullOrEmpty(text))
             return Array.Empty<string>();
