@@ -20,19 +20,49 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly IGitService _git;
     private readonly IFolderPickerService _folderPicker;
 
+    private readonly IThemeService _themeService;
+
     public MainWindowViewModel(
         ISettingsService settings,
         IGitService git,
         IFolderPickerService folderPicker,
-        DiffViewModel diff)
+        DiffViewModel diff,
+        IThemeService themeService)
     {
         _settings = settings;
         _git = git;
         _folderPicker = folderPicker;
+        _themeService = themeService;
         Diff = diff;
 
         _selectedMode = ComparisonModes.FirstOrDefault(o => o.Mode == settings.Settings.LastComparisonMode)
                         ?? ComparisonModes[0];
+        _selectedTheme = ThemeModes.FirstOrDefault(o => o.Mode == settings.Settings.ThemeMode)
+                        ?? ThemeModes[0];
+
+        // Re-render the open diff when the effective theme changes so syntax
+        // colors switch with it (FR-20, FR-28).
+        _themeService.EffectiveThemeChanged += OnEffectiveThemeChanged;
+    }
+
+    // --- Theme selection ----------------------------------------------------
+
+    public IReadOnlyList<ThemeOption> ThemeModes { get; } = new[]
+    {
+        new ThemeOption(ThemeMode.System, "System"),
+        new ThemeOption(ThemeMode.Light, "Light"),
+        new ThemeOption(ThemeMode.Dark, "Dark"),
+    };
+
+    [ObservableProperty]
+    private ThemeOption _selectedTheme;
+
+    partial void OnSelectedThemeChanged(ThemeOption value) => _themeService.SetMode(value.Mode);
+
+    private void OnEffectiveThemeChanged()
+    {
+        if (SelectedFile is { } file && _currentBaseSha is { } sha)
+            _ = Diff.LoadAsync(sha, file.Model);
     }
 
     /// <summary>The diff view model for the selected file.</summary>

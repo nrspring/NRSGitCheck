@@ -25,6 +25,9 @@ public partial class App : Application
         ConfigureServices(services);
         Services = services.BuildServiceProvider();
 
+        // Apply the saved theme before the window is shown (FR-29).
+        Services.GetRequiredService<IThemeService>().Initialize();
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var mainWindow = Services.GetRequiredService<MainWindow>();
@@ -46,6 +49,7 @@ public partial class App : Application
         services.AddSingleton<IGitService, GitService>();
         services.AddSingleton<ISyntaxHighlighter, SyntaxHighlighter>();
         services.AddSingleton<IDiffService, DiffService>();
+        services.AddSingleton<IThemeService, ThemeService>();
         services.AddSingleton<IFolderPickerService, FolderPickerService>();
 
         // Views

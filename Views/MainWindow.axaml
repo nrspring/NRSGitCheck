@@ -19,7 +19,9 @@
             BorderThickness="0,0,0,1"
             MinHeight="48">
 
-      <Panel Margin="16,8">
+      <Grid Margin="16,8" ColumnDefinitions="*,Auto">
+
+       <Panel Grid.Column="0">
 
         <!-- No repo: just branding -->
         <TextBlock Text="{Binding Title}"
@@ -78,7 +80,20 @@
           <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="0,0,6,0" VerticalAlignment="Center" />
           <Button Content="Open…" Command="{Binding OpenRepositoryCommand}" VerticalAlignment="Center" />
         </WrapPanel>
-      </Panel>
+       </Panel>
+
+       <!-- Theme selector: always available (FR-28) -->
+       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="12,0,0,0">
+         <TextBlock Text="Theme" Opacity="0.6" VerticalAlignment="Center" />
+         <ComboBox ItemsSource="{Binding ThemeModes}" SelectedItem="{Binding SelectedTheme}" MinWidth="92" VerticalAlignment="Center">
+           <ComboBox.ItemTemplate>
+             <DataTemplate x:DataType="vm:ThemeOption">
+               <TextBlock Text="{Binding Label}" />
+             </DataTemplate>
+           </ComboBox.ItemTemplate>
+         </ComboBox>
+       </StackPanel>
+      </Grid>
     </Border>
 
     <!-- Status bar -->
