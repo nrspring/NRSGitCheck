@@ -145,6 +145,44 @@ public sealed class GitServiceTests : IDisposable
         changes.Single(c => c.Path == path).Kind;
 
     [Fact]
+    public void GetFileContent_reads_old_from_rename_source_path()
+    {
+        var dir = InitRepo("repo");
+        Commit(dir, "old-name.txt", "original\n");
+
+        // Simulate a rename in the working tree: remove old, write new with new content.
+        File.Delete(Path.Combine(dir, "old-name.txt"));
+        File.WriteAllText(Path.Combine(dir, "new-name.txt"), "original\nplus more\n");
+
+        _git.OpenRepository(dir);
+        var head = _git.ResolveComparison(ComparisonMode.LastCommit, null, null).Sha!;
+
+        // A rename change whose old content lives at the previous path.
+        var renamed = new FileChange("new-name.txt", "old-name.txt", ChangeKind.Renamed, 1, 0, false);
+        var content = _git.GetFileContent(head, renamed);
+
+        Assert.Equal("original\n", content.OldText);
+        Assert.Equal("original\nplus more\n", content.NewText);
+        Assert.False(content.IsBinary);
+    }
+
+    [Fact]
+    public void GetFileContent_flags_binary_working_file()
+    {
+        var dir = InitRepo("repo");
+        Commit(dir, "a.txt", "one\n");
+        File.WriteAllBytes(Path.Combine(dir, "blob.bin"), new byte[] { 1, 0, 2, 3 });
+
+        _git.OpenRepository(dir);
+        var head = _git.ResolveComparison(ComparisonMode.LastCommit, null, null).Sha!;
+
+        var change = new FileChange("blob.bin", null, ChangeKind.Untracked, 0, 0, true);
+        var content = _git.GetFileContent(head, change);
+
+        Assert.True(content.IsBinary);
+    }
+
+    [Fact]
     public void OtherBranch_without_selection_is_unresolved()
     {
         var dir = InitRepo("repo");

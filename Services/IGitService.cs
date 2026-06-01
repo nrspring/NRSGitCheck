@@ -29,4 +29,10 @@ public interface IGitService
     /// for binary files, which are flagged.
     /// </summary>
     System.Collections.Generic.IReadOnlyList<FileChange> GetChanges(string baseCommitSha);
+
+    /// <summary>
+    /// Retrieves the base (commit) and new (working-tree) text for a changed file,
+    /// honoring renames (old content read from the old path). Flags binary content.
+    /// </summary>
+    FileContent GetFileContent(string baseCommitSha, FileChange change);
 }

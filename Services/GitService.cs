@@ -154,6 +154,61 @@ public sealed class GitService : IGitService, IDisposable
         }
     }
 
+    public FileContent GetFileContent(string baseCommitSha, FileChange change)
+    {
+        lock (_gate)
+        {
+            var repo = _repo ?? throw new GitException("No repository is open.");
+            var commit = repo.Lookup<Commit>(baseCommitSha)
+                ?? throw new GitException("The comparison base commit could not be found.");
+
+            var isBinary = false;
+            string oldText = "";
+            string newText = "";
+
+            // Old side: from the base commit. For renames the content lives at OldPath.
+            if (change.Kind is not (ChangeKind.Added or ChangeKind.Untracked))
+            {
+                var oldPath = change.OldPath ?? change.Path;
+                if (commit[oldPath]?.Target is Blob blob)
+                {
+                    if (blob.IsBinary)
+                        isBinary = true;
+                    else
+                        oldText = blob.GetContentText();
+                }
+            }
+
+            // New side: from the working directory.
+            if (change.Kind != ChangeKind.Deleted)
+            {
+                var full = Path.Combine(repo.Info.WorkingDirectory, change.Path);
+                if (File.Exists(full))
+                {
+                    var bytes = File.ReadAllBytes(full);
+                    if (LooksBinary(bytes))
+                        isBinary = true;
+                    else
+                        newText = DecodeText(bytes);
+                }
+            }
+
+            return isBinary ? new FileContent("", "", true) : new FileContent(oldText, newText, false);
+        }
+    }
+
+    private static bool LooksBinary(byte[] bytes)
+    {
+        var probe = Math.Min(bytes.Length, 8000);
+        return Array.IndexOf(bytes, (byte)0, 0, probe) >= 0;
+    }
+
+    private static string DecodeText(byte[] bytes)
+    {
+        using var reader = new StreamReader(new MemoryStream(bytes), detectEncodingFromByteOrderMarks: true);
+        return reader.ReadToEnd();
+    }
+
     private static ChangeKind MapStatus(LibGitChangeKind status) => status switch
     {
         LibGitChangeKind.Added => ChangeKind.Added,
