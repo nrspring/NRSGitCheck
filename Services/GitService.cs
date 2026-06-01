@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using LibGit2Sharp;
 using NRSGitCheck.Models;
+using ChangeKind = NRSGitCheck.Models.ChangeKind;
+using LibGitChangeKind = LibGit2Sharp.ChangeKind;
 
 namespace NRSGitCheck.Services;
 
@@ -91,6 +93,103 @@ public sealed class GitService : IGitService, IDisposable
                 default:
                     return ResolvedComparison.Unresolved("Unknown comparison mode.");
             }
+        }
+    }
+
+    public IReadOnlyList<FileChange> GetChanges(string baseCommitSha)
+    {
+        lock (_gate)
+        {
+            var repo = _repo ?? throw new GitException("No repository is open.");
+
+            var commit = repo.Lookup<Commit>(baseCommitSha)
+                ?? throw new GitException("The comparison base commit could not be found.");
+
+            var result = new List<FileChange>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+
+            // Files not under version control. The tree->workdir diff reports these
+            // as "Added", so we use this set to reclassify them as Untracked (FR-13).
+            var untrackedSet = new HashSet<string>(StringComparer.Ordinal);
+            var status = repo.RetrieveStatus(new StatusOptions
+            {
+                IncludeUntracked = true,
+                RecurseUntrackedDirs = true,
+                IncludeIgnored = false,
+            });
+            foreach (var u in status.Untracked)
+                untrackedSet.Add(u.FilePath);
+
+            // Differences between the base tree and the working directory.
+            var patch = repo.Diff.Compare<Patch>(commit.Tree, DiffTargets.WorkingDirectory);
+            foreach (var entry in patch)
+            {
+                var kind = untrackedSet.Contains(entry.Path)
+                    ? ChangeKind.Untracked
+                    : MapStatus(entry.Status);
+
+                result.Add(new FileChange(
+                    entry.Path,
+                    entry.OldPath != entry.Path ? entry.OldPath : null,
+                    kind,
+                    entry.LinesAdded,
+                    entry.LinesDeleted,
+                    entry.IsBinaryComparison));
+                seen.Add(entry.Path);
+            }
+
+            // Safety net: include any untracked file the diff didn't surface.
+            foreach (var path in untrackedSet)
+            {
+                if (!seen.Add(path))
+                    continue;
+
+                var (lines, isBinary) = CountWorkdirLines(repo, path);
+                result.Add(new FileChange(path, null, ChangeKind.Untracked, lines, 0, isBinary));
+            }
+
+            return result
+                .OrderBy(f => f.Path, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+    }
+
+    private static ChangeKind MapStatus(LibGitChangeKind status) => status switch
+    {
+        LibGitChangeKind.Added => ChangeKind.Added,
+        LibGitChangeKind.Deleted => ChangeKind.Deleted,
+        LibGitChangeKind.Renamed => ChangeKind.Renamed,
+        LibGitChangeKind.Copied => ChangeKind.Added,
+        LibGitChangeKind.Untracked => ChangeKind.Untracked,
+        _ => ChangeKind.Modified,
+    };
+
+    /// <summary>Counts text lines in a working-dir file; flags it binary on a NUL byte.</summary>
+    private static (int lines, bool isBinary) CountWorkdirLines(Repository repo, string relativePath)
+    {
+        try
+        {
+            var full = Path.Combine(repo.Info.WorkingDirectory, relativePath);
+            var bytes = File.ReadAllBytes(full);
+            if (bytes.Length == 0)
+                return (0, false);
+
+            var probe = Math.Min(bytes.Length, 8000);
+            if (Array.IndexOf(bytes, (byte)0, 0, probe) >= 0)
+                return (0, true);
+
+            var lines = 0;
+            foreach (var b in bytes)
+                if (b == (byte)'\n')
+                    lines++;
+            if (bytes[^1] != (byte)'\n')
+                lines++;
+
+            return (lines, false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return (0, false);
         }
     }
 

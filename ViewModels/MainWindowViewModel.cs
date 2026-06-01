@@ -67,6 +67,23 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool _hasRecentRepositories;
 
+    // --- Changed-files list -------------------------------------------------
+
+    private List<FileChangeViewModel> _allFiles = new();
+
+    public ObservableCollection<FileChangeViewModel> Files { get; } = new();
+
+    [ObservableProperty]
+    private FileChangeViewModel? _selectedFile;
+
+    [ObservableProperty]
+    private string? _fileFilter;
+
+    [ObservableProperty]
+    private string _changedFilesSummary = string.Empty;
+
+    partial void OnFileFilterChanged(string? value) => ApplyFilter();
+
     // --- Comparison target --------------------------------------------------
 
     public IReadOnlyList<ComparisonModeOption> ComparisonModes { get; } = new[]
@@ -194,13 +211,63 @@ public partial class MainWindowViewModel : ViewModelBase
                 ? $"Comparing working tree against {resolved.Label}."
                 : resolved.Error ?? "Could not resolve the comparison target.";
 
+            if (resolved.Found && resolved.Sha is { } sha)
+            {
+                var changes = await Task.Run(() => _git.GetChanges(sha));
+                PopulateFiles(changes);
+            }
+            else
+            {
+                ClearFiles();
+            }
+
             _settings.Settings.LastComparisonMode = mode;
             _settings.Save();
         }
         catch (GitException ex)
         {
             Status = ex.Message;
+            ClearFiles();
         }
+    }
+
+    private void PopulateFiles(IReadOnlyList<FileChange> changes)
+    {
+        _allFiles = changes.Select(c => new FileChangeViewModel(c)).ToList();
+        SelectedFile = null;
+        ApplyFilter();
+    }
+
+    private void ClearFiles()
+    {
+        _allFiles = new List<FileChangeViewModel>();
+        Files.Clear();
+        SelectedFile = null;
+        ChangedFilesSummary = string.Empty;
+    }
+
+    private void ApplyFilter()
+    {
+        var filter = FileFilter?.Trim();
+
+        Files.Clear();
+        foreach (var f in _allFiles)
+        {
+            if (string.IsNullOrEmpty(filter) ||
+                f.Path.Contains(filter, System.StringComparison.OrdinalIgnoreCase))
+                Files.Add(f);
+        }
+
+        var total = _allFiles.Count;
+        var shown = Files.Count;
+        var added = _allFiles.Sum(f => f.LinesAdded);
+        var deleted = _allFiles.Sum(f => f.LinesDeleted);
+
+        var countText = string.IsNullOrEmpty(filter) || shown == total
+            ? $"{total} changed file{(total == 1 ? "" : "s")}"
+            : $"{shown} of {total} files";
+
+        ChangedFilesSummary = total == 0 ? "No changes" : $"{countText}    +{added}  −{deleted}";
     }
 
     // --- Recent repositories ------------------------------------------------

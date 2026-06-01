@@ -22,4 +22,11 @@ public interface IGitService
     /// resolve" cases — those come back as an unresolved <see cref="ResolvedComparison"/>.
     /// </summary>
     ResolvedComparison ResolveComparison(ComparisonMode mode, string? otherBranch, string? parentBranch);
+
+    /// <summary>
+    /// Lists files that differ between the given base commit and the current
+    /// working tree, including untracked files (FR-12..17). Line counts are zero
+    /// for binary files, which are flagged.
+    /// </summary>
+    System.Collections.Generic.IReadOnlyList<FileChange> GetChanges(string baseCommitSha);
 }

@@ -28,3 +28,13 @@ public enum DiffLayout
     SideBySide,
     Inline,
 }
+
+/// <summary>Type of change for a file in the changed-files list (FR-13).</summary>
+public enum ChangeKind
+{
+    Added,
+    Modified,
+    Deleted,
+    Renamed,
+    Untracked,
+}

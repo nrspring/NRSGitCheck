@@ -1,9 +1,11 @@
 using System;
 using System.IO;
+using System.Linq;
 using LibGit2Sharp;
 using NRSGitCheck.Models;
 using NRSGitCheck.Services;
 using Xunit;
+using ChangeKind = NRSGitCheck.Models.ChangeKind;
 
 namespace NRSGitCheck.Tests;
 
@@ -100,6 +102,47 @@ public sealed class GitServiceTests : IDisposable
         Assert.True(resolved.Found);
         Assert.Equal(baseSha, resolved.Sha);
     }
+
+    [Fact]
+    public void GetChanges_reports_modified_deleted_and_untracked()
+    {
+        var dir = InitRepo("repo");
+        Commit(dir, "a.txt", "one\n");
+        Commit(dir, "b.txt", "two\n");
+
+        // Working-tree edits relative to HEAD.
+        File.WriteAllText(Path.Combine(dir, "a.txt"), "one changed\n");  // modified
+        File.Delete(Path.Combine(dir, "b.txt"));                          // deleted
+        File.WriteAllText(Path.Combine(dir, "c.txt"), "three\n");         // untracked
+
+        _git.OpenRepository(dir);
+        var head = _git.ResolveComparison(ComparisonMode.LastCommit, null, null).Sha!;
+        var changes = _git.GetChanges(head);
+
+        Assert.Equal(ChangeKind.Modified, Kind(changes, "a.txt"));
+        Assert.Equal(ChangeKind.Deleted, Kind(changes, "b.txt"));
+        Assert.Equal(ChangeKind.Untracked, Kind(changes, "c.txt"));
+        Assert.Equal(3, changes.Count);
+    }
+
+    [Fact]
+    public void GetChanges_flags_binary_untracked_file()
+    {
+        var dir = InitRepo("repo");
+        Commit(dir, "a.txt", "one\n");
+        File.WriteAllBytes(Path.Combine(dir, "blob.bin"), new byte[] { 1, 2, 0, 3, 4 });
+
+        _git.OpenRepository(dir);
+        var head = _git.ResolveComparison(ComparisonMode.LastCommit, null, null).Sha!;
+        var changes = _git.GetChanges(head);
+
+        var bin = changes.Single(c => c.Path == "blob.bin");
+        Assert.True(bin.IsBinary);
+        Assert.Equal(0, bin.LinesAdded);
+    }
+
+    private static ChangeKind Kind(System.Collections.Generic.IReadOnlyList<FileChange> changes, string path) =>
+        changes.Single(c => c.Path == path).Kind;
 
     [Fact]
     public void OtherBranch_without_selection_is_unresolved()
