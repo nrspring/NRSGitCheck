@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -284,10 +285,82 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnSelectedFileChanged(FileChangeViewModel? value)
     {
         if (value is null || _currentBaseSha is null)
+        {
             Diff.Clear();
+        }
         else
-            _ = Diff.LoadAsync(_currentBaseSha, value.Model);
+        {
+            _ = Diff.LoadAsync(_currentBaseSha, value.Model, _nextLoadPosition);
+            _nextLoadPosition = HunkPosition.First;
+        }
     }
+
+    // --- Keyboard navigation (FR-24..27) ------------------------------------
+
+    private HunkPosition _nextLoadPosition = HunkPosition.First;
+
+    public IReadOnlyList<ShortcutInfo> Shortcuts => KeyboardShortcuts.All;
+    public string ShortcutHint => KeyboardShortcuts.StatusHint;
+
+    [ObservableProperty]
+    private bool _isHelpVisible;
+
+    /// <summary>Event raised to ask the view to focus the file filter (FR-25).</summary>
+    public event Action? FocusFilterRequested;
+
+    public void NextFile()
+    {
+        if (Files.Count == 0)
+            return;
+        var index = SelectedFile is null ? -1 : Files.IndexOf(SelectedFile);
+        SelectedFile = Files[Math.Min(index + 1, Files.Count - 1)];
+    }
+
+    public void PreviousFile()
+    {
+        if (Files.Count == 0)
+            return;
+        var index = SelectedFile is null ? Files.Count : Files.IndexOf(SelectedFile);
+        SelectedFile = Files[Math.Max(index - 1, 0)];
+    }
+
+    public void NextHunk()
+    {
+        if (!Diff.GoToNextHunk())
+            NextFile(); // falls through to the next file's first hunk (FR-27)
+    }
+
+    public void PreviousHunk()
+    {
+        if (!Diff.GoToPreviousHunk())
+        {
+            _nextLoadPosition = HunkPosition.Last;
+            PreviousFile(); // lands on the previous file's last hunk (FR-27)
+        }
+    }
+
+    public void ToggleDiffLayout() => Diff.ToggleLayoutCommand.Execute(null);
+
+    public void ToggleTheme()
+    {
+        var index = 0;
+        for (var i = 0; i < ThemeModes.Count; i++)
+        {
+            if (ThemeModes[i] == SelectedTheme)
+            {
+                index = i;
+                break;
+            }
+        }
+        SelectedTheme = ThemeModes[(index + 1) % ThemeModes.Count];
+    }
+
+    public void RequestFocusFilter() => FocusFilterRequested?.Invoke();
+
+    public void ToggleHelp() => IsHelpVisible = !IsHelpVisible;
+
+    [RelayCommand]
+    private void CloseHelp() => IsHelpVisible = false;
 
     private void ClearFiles()
     {

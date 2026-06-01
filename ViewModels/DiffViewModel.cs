@@ -29,6 +29,16 @@ public partial class DiffViewModel : ViewModelBase
     public ObservableCollection<object> InlineRows { get; } = new();
     public ObservableCollection<object> SideRows { get; } = new();
 
+    // Hunk anchors (the separator rows) per layout, for keyboard navigation (FR-24, FR-27).
+    private readonly List<object> _inlineAnchors = new();
+    private readonly List<object> _sideAnchors = new();
+    private int _currentHunkIndex = -1;
+
+    private List<object> ActiveAnchors => IsInline ? _inlineAnchors : _sideAnchors;
+
+    /// <summary>Raised to ask the view to scroll a row into view.</summary>
+    public event Action<object>? ScrollToRequested;
+
     [ObservableProperty]
     private DiffLayout _layout;
 
@@ -63,16 +73,49 @@ public partial class DiffViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsInline));
         _settings.Settings.LastDiffLayout = value;
         _settings.Save();
+
+        // Keep the current hunk in view after switching layout.
+        if (_currentHunkIndex >= 0 && _currentHunkIndex < ActiveAnchors.Count)
+            ScrollToRequested?.Invoke(ActiveAnchors[_currentHunkIndex]);
     }
 
     [RelayCommand]
     private void ToggleLayout() =>
         Layout = Layout == DiffLayout.SideBySide ? DiffLayout.Inline : DiffLayout.SideBySide;
 
+    /// <summary>Moves to the next hunk; returns false if already at the last one (FR-24, FR-27).</summary>
+    public bool GoToNextHunk()
+    {
+        var anchors = ActiveAnchors;
+        if (_currentHunkIndex < anchors.Count - 1)
+        {
+            _currentHunkIndex++;
+            ScrollToRequested?.Invoke(anchors[_currentHunkIndex]);
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>Moves to the previous hunk; returns false if already at the first one.</summary>
+    public bool GoToPreviousHunk()
+    {
+        var anchors = ActiveAnchors;
+        if (_currentHunkIndex > 0)
+        {
+            _currentHunkIndex--;
+            ScrollToRequested?.Invoke(anchors[_currentHunkIndex]);
+            return true;
+        }
+        return false;
+    }
+
     public void Clear()
     {
         InlineRows.Clear();
         SideRows.Clear();
+        _inlineAnchors.Clear();
+        _sideAnchors.Clear();
+        _currentHunkIndex = -1;
         HasContent = false;
         IsBinary = false;
         IsTooLarge = false;
@@ -82,17 +125,20 @@ public partial class DiffViewModel : ViewModelBase
         RaiseShowState();
     }
 
-    public async Task LoadAsync(string baseSha, FileChange change)
+    public async Task LoadAsync(string baseSha, FileChange change, HunkPosition position = HunkPosition.First)
     {
         FileName = System.IO.Path.GetFileName(change.Path);
         var doc = await Task.Run(() => _diff.BuildDiff(baseSha, change));
-        Apply(doc);
+        Apply(doc, position);
     }
 
-    private void Apply(DiffDocument doc)
+    private void Apply(DiffDocument doc, HunkPosition position)
     {
         InlineRows.Clear();
         SideRows.Clear();
+        _inlineAnchors.Clear();
+        _sideAnchors.Clear();
+        _currentHunkIndex = -1;
 
         IsBinary = doc.IsBinary;
         IsTooLarge = doc.IsTooLarge;
@@ -109,6 +155,12 @@ public partial class DiffViewModel : ViewModelBase
         {
             BuildInline(doc);
             BuildSide(doc);
+
+            if (ActiveAnchors.Count > 0)
+            {
+                _currentHunkIndex = position == HunkPosition.Last ? ActiveAnchors.Count - 1 : 0;
+                ScrollToRequested?.Invoke(ActiveAnchors[_currentHunkIndex]);
+            }
         }
 
         RaiseShowState();
@@ -126,7 +178,9 @@ public partial class DiffViewModel : ViewModelBase
     {
         foreach (var hunk in doc.Hunks)
         {
-            InlineRows.Add(new HunkSeparatorRow { Header = hunk.Header });
+            var separator = new HunkSeparatorRow { Header = hunk.Header };
+            InlineRows.Add(separator);
+            _inlineAnchors.Add(separator);
             foreach (var line in hunk.Lines)
             {
                 InlineRows.Add(new InlineDiffRow
@@ -150,7 +204,9 @@ public partial class DiffViewModel : ViewModelBase
     {
         foreach (var hunk in doc.Hunks)
         {
-            SideRows.Add(new HunkSeparatorRow { Header = hunk.Header });
+            var separator = new HunkSeparatorRow { Header = hunk.Header };
+            SideRows.Add(separator);
+            _sideAnchors.Add(separator);
 
             var lines = hunk.Lines;
             var i = 0;

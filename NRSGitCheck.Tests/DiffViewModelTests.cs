@@ -84,6 +84,28 @@ public sealed class DiffViewModelTests
     }
 
     [Fact]
+    public async Task Hunk_navigation_moves_through_then_stops()
+    {
+        var oldText = string.Join("\n", Enumerable.Range(1, 40).Select(i => $"line{i}")) + "\n";
+        var newText = string.Join("\n", Enumerable.Range(1, 40).Select(i =>
+            i == 5 ? "line5-x" : i == 35 ? "line35-x" : $"line{i}")) + "\n";
+        var doc = DiffEngine.Compute(oldText, newText, contextLines: 3);
+        Assert.Equal(2, doc.Hunks.Count);
+
+        var vm = new DiffViewModel(new StubDiff(doc), new StubSettings());
+        var scrolls = 0;
+        vm.ScrollToRequested += _ => scrolls++;
+
+        await vm.LoadAsync("base", Change()); // lands on the first hunk
+
+        Assert.True(vm.GoToNextHunk());        // -> second hunk
+        Assert.False(vm.GoToNextHunk());       // already at last
+        Assert.True(vm.GoToPreviousHunk());    // -> first hunk
+        Assert.False(vm.GoToPreviousHunk());   // already at first
+        Assert.True(scrolls >= 2);
+    }
+
+    [Fact]
     public void ToggleLayout_flips_and_persists()
     {
         var settings = new StubSettings();

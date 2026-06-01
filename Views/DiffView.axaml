@@ -73,6 +73,7 @@
 
       <!-- Inline / unified -->
       <ListBox Grid.Row="1"
+               Name="InlineList"
                Classes="diff"
                ItemsSource="{Binding InlineRows}"
                Background="Transparent"
@@ -102,6 +103,7 @@
 
       <!-- Side-by-side -->
       <ListBox Grid.Row="1"
+               Name="SideList"
                Classes="diff"
                ItemsSource="{Binding SideRows}"
                Background="Transparent"
