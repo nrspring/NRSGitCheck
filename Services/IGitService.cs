@@ -24,11 +24,21 @@ public interface IGitService
     ResolvedComparison ResolveComparison(ComparisonMode mode, string? otherBranch, string? parentBranch);
 
     /// <summary>
-    /// Lists files that differ between the given base commit and the current
-    /// working tree, including untracked files (FR-12..17). Line counts are zero
-    /// for binary files, which are flagged.
+    /// Lists files that differ between the given base commit and the current working
+    /// tree, including untracked files (FR-12..17). This is a fast, metadata-only
+    /// pass: tracked files carry zero line counts (filled in later by
+    /// <see cref="GetChangeStats"/>); untracked files are counted from disk and have
+    /// their binary flag set.
     /// </summary>
     System.Collections.Generic.IReadOnlyList<FileChange> GetChanges(string baseCommitSha);
+
+    /// <summary>
+    /// Computes per-file line counts and binary flags for tracked changes, keyed by
+    /// path. Runs against an independent repository handle so it can execute on a
+    /// background thread concurrently with interactive reads (NFR-1). Untracked files
+    /// are omitted (already counted by <see cref="GetChanges"/>).
+    /// </summary>
+    System.Collections.Generic.IReadOnlyDictionary<string, FileStats> GetChangeStats(string baseCommitSha);
 
     /// <summary>
     /// Retrieves the base (commit) and new (working-tree) text for a changed file,

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using NRSGitCheck.Models;
 
 namespace NRSGitCheck.Services;
@@ -32,19 +34,29 @@ public sealed class DiffService : IDiffService
         if (CountLines(content.OldText) > MaxDiffLines || CountLines(content.NewText) > MaxDiffLines)
             return DiffDocument.TooLarge();
 
-        var doc = DiffEngine.Compute(content.OldText, content.NewText, contextLines);
-        ApplyHighlighting(doc, change.Path, content.OldText, content.NewText);
+        // The line diff (pure CPU) and syntax tokenization (CPU, but serialized
+        // inside the highlighter) are independent. Run the diff on a worker thread
+        // so it overlaps with the two highlight passes this thread drives, instead
+        // of the three running back-to-back (NFR-1).
+        var computeTask = Task.Run(() => DiffEngine.Compute(content.OldText, content.NewText, contextLines));
+
+        var oldColors = _highlighter.Highlight(change.Path, content.OldText);
+        var newColors = _highlighter.Highlight(change.Path, content.NewText);
+
+        var doc = computeTask.GetAwaiter().GetResult();
+        ApplyHighlighting(doc, oldColors, newColors);
         return doc;
     }
 
     /// <summary>
-    /// Tokenizes both sides and attaches the per-line foreground spans to each
-    /// diff line, choosing the old or new tokenization by the line's role (FR-20).
+    /// Attaches the precomputed per-line foreground spans to each diff line,
+    /// choosing the old or new tokenization by the line's role (FR-20).
     /// </summary>
-    private void ApplyHighlighting(DiffDocument doc, string path, string oldText, string newText)
+    private static void ApplyHighlighting(
+        DiffDocument doc,
+        IReadOnlyList<IReadOnlyList<ColorSpan>>? oldColors,
+        IReadOnlyList<IReadOnlyList<ColorSpan>>? newColors)
     {
-        var oldColors = _highlighter.Highlight(path, oldText);
-        var newColors = _highlighter.Highlight(path, newText);
         if (oldColors is null && newColors is null)
             return;
 

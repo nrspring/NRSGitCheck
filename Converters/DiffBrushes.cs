@@ -61,8 +61,10 @@ public sealed class SideCellBackgroundConverter : IValueConverter
 
 /// <summary>
 /// Maps a <see cref="RenderSegment"/>'s hex foreground to a cached brush (FR-20).
-/// Returns <see cref="AvaloniaProperty.UnsetValue"/> when there is no syntax color,
-/// so the text falls back to the theme's default foreground.
+/// When a segment has no syntax color (punctuation, whitespace, plain text) it
+/// returns the app's theme foreground brush, so that text stays visible. Returning
+/// <see cref="AvaloniaProperty.UnsetValue"/> here would leave the explicitly-bound
+/// Foreground null (invisible) rather than inheriting the theme color.
 /// </summary>
 public sealed class SegmentForegroundConverter : IValueConverter
 {
@@ -73,7 +75,7 @@ public sealed class SegmentForegroundConverter : IValueConverter
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is not RenderSegment { Foreground: { } hex } || string.IsNullOrEmpty(hex))
-            return AvaloniaProperty.UnsetValue;
+            return DefaultForeground();
 
         lock (Cache)
         {
@@ -86,12 +88,27 @@ public sealed class SegmentForegroundConverter : IValueConverter
             }
             catch (FormatException)
             {
-                return AvaloniaProperty.UnsetValue;
+                return DefaultForeground();
             }
 
             Cache[hex] = brush;
             return brush;
         }
+    }
+
+    /// <summary>
+    /// The current theme's default text foreground. The diff is rebuilt when the
+    /// theme changes, so this is re-evaluated for the active variant each time.
+    /// </summary>
+    private static IBrush DefaultForeground()
+    {
+        var app = Application.Current;
+        if (app is not null &&
+            app.TryGetResource("SystemControlForegroundBaseHighBrush", app.ActualThemeVariant, out var res) &&
+            res is IBrush brush)
+            return brush;
+
+        return Brushes.Gray;
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>

@@ -19,6 +19,9 @@ public sealed class GitService : IGitService, IDisposable
     private readonly object _gate = new();
     private Repository? _repo;
 
+    /// <summary>Discovered repo path, kept so background work can open its own handle.</summary>
+    private string? _repoPath;
+
     public RepositorySnapshot OpenRepository(string path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -41,6 +44,7 @@ public sealed class GitService : IGitService, IDisposable
         {
             _repo?.Dispose();
             _repo = new Repository(discovered);
+            _repoPath = discovered;
             return BuildSnapshot(_repo);
         }
     }
@@ -108,8 +112,7 @@ public sealed class GitService : IGitService, IDisposable
             var result = new List<FileChange>();
             var seen = new HashSet<string>(StringComparer.Ordinal);
 
-            // Files not under version control. The tree->workdir diff reports these
-            // as "Added", so we use this set to reclassify them as Untracked (FR-13).
+            // Files not under version control, surfaced separately as Untracked (FR-13).
             var untrackedSet = new HashSet<string>(StringComparer.Ordinal);
             var status = repo.RetrieveStatus(new StatusOptions
             {
@@ -120,32 +123,40 @@ public sealed class GitService : IGitService, IDisposable
             foreach (var u in status.Untracked)
                 untrackedSet.Add(u.FilePath);
 
-            // Differences between the base tree and the working directory.
-            var patch = repo.Diff.Compare<Patch>(commit.Tree, DiffTargets.WorkingDirectory);
-            foreach (var entry in patch)
+            // Fast, metadata-only comparison: paths + change kind, with NO per-file
+            // content diff. Line counts and the binary flag for tracked files are
+            // computed later by GetChangeStats so opening stays responsive (NFR-1).
+            var tree = repo.Diff.Compare<TreeChanges>(commit.Tree, DiffTargets.WorkingDirectory);
+            foreach (var entry in tree)
             {
-                var kind = untrackedSet.Contains(entry.Path)
-                    ? ChangeKind.Untracked
-                    : MapStatus(entry.Status);
+                if (untrackedSet.Contains(entry.Path))
+                    continue; // handled in the untracked pass below
 
                 result.Add(new FileChange(
                     entry.Path,
                     entry.OldPath != entry.Path ? entry.OldPath : null,
-                    kind,
-                    entry.LinesAdded,
-                    entry.LinesDeleted,
-                    entry.IsBinaryComparison));
+                    MapStatus(entry.Status),
+                    LinesAdded: 0,
+                    LinesDeleted: 0,
+                    IsBinary: false));
                 seen.Add(entry.Path);
             }
 
-            // Safety net: include any untracked file the diff didn't surface.
-            foreach (var path in untrackedSet)
+            // Untracked files: counted cheaply from disk (which also flags binary),
+            // in parallel since it is pure I/O. Dedup on this thread, then fan out.
+            var workdir = repo.Info.WorkingDirectory;
+            var extra = untrackedSet.Where(path => seen.Add(path)).ToList();
+            if (extra.Count > 0)
             {
-                if (!seen.Add(path))
-                    continue;
-
-                var (lines, isBinary) = CountWorkdirLines(repo, path);
-                result.Add(new FileChange(path, null, ChangeKind.Untracked, lines, 0, isBinary));
+                var counted = extra
+                    .AsParallel()
+                    .Select(path =>
+                    {
+                        var (lines, isBinary) = CountWorkdirLines(workdir, path);
+                        return new FileChange(path, null, ChangeKind.Untracked, lines, 0, isBinary);
+                    })
+                    .ToList();
+                result.AddRange(counted);
             }
 
             return result
@@ -153,6 +164,50 @@ public sealed class GitService : IGitService, IDisposable
                 .ToList();
         }
     }
+
+    public IReadOnlyDictionary<string, FileStats> GetChangeStats(string baseCommitSha)
+    {
+        string? path;
+        lock (_gate)
+            path = _repoPath;
+
+        if (string.IsNullOrEmpty(path))
+            return EmptyStats;
+
+        // Independent repository handle: separate LibGit2Sharp instances don't share
+        // state, so this heavy content diff runs on a background thread without
+        // contending with interactive reads on the main handle (NFR-1).
+        using var repo = new Repository(path);
+
+        var commit = repo.Lookup<Commit>(baseCommitSha);
+        if (commit is null)
+            return EmptyStats;
+
+        var untracked = new HashSet<string>(StringComparer.Ordinal);
+        var status = repo.RetrieveStatus(new StatusOptions
+        {
+            IncludeUntracked = true,
+            RecurseUntrackedDirs = true,
+            IncludeIgnored = false,
+        });
+        foreach (var u in status.Untracked)
+            untracked.Add(u.FilePath);
+
+        var result = new Dictionary<string, FileStats>(StringComparer.Ordinal);
+        var patch = repo.Diff.Compare<Patch>(commit.Tree, DiffTargets.WorkingDirectory);
+        foreach (var entry in patch)
+        {
+            if (untracked.Contains(entry.Path))
+                continue; // untracked counts already set from disk by GetChanges
+
+            result[entry.Path] = new FileStats(entry.LinesAdded, entry.LinesDeleted, entry.IsBinaryComparison);
+        }
+
+        return result;
+    }
+
+    private static readonly IReadOnlyDictionary<string, FileStats> EmptyStats =
+        new Dictionary<string, FileStats>();
 
     public FileContent GetFileContent(string baseCommitSha, FileChange change)
     {
@@ -219,12 +274,16 @@ public sealed class GitService : IGitService, IDisposable
         _ => ChangeKind.Modified,
     };
 
-    /// <summary>Counts text lines in a working-dir file; flags it binary on a NUL byte.</summary>
-    private static (int lines, bool isBinary) CountWorkdirLines(Repository repo, string relativePath)
+    /// <summary>Counts text lines in a working-dir file; flags it binary on a NUL byte.
+    /// Takes the working-directory path (not the repo) so it is safe to call in parallel.</summary>
+    private static (int lines, bool isBinary) CountWorkdirLines(string? workingDirectory, string relativePath)
     {
         try
         {
-            var full = Path.Combine(repo.Info.WorkingDirectory, relativePath);
+            if (string.IsNullOrEmpty(workingDirectory))
+                return (0, false);
+
+            var full = Path.Combine(workingDirectory, relativePath);
             var bytes = File.ReadAllBytes(full);
             if (bytes.Length == 0)
                 return (0, false);

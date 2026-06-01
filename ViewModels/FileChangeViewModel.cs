@@ -1,17 +1,25 @@
-using System.IO;
+using CommunityToolkit.Mvvm.ComponentModel;
 using NRSGitCheck.Models;
 
 namespace NRSGitCheck.ViewModels;
 
 /// <summary>
-/// One row in the changed-files list (FR-12..17). Immutable presentation wrapper
-/// around a <see cref="FileChange"/>.
+/// One row in the changed-files list (FR-12..17). Presentation wrapper around a
+/// <see cref="FileChange"/>. Line counts and the binary flag start at their initial
+/// values and are filled in by <see cref="ApplyStats"/> once the background stats
+/// pass completes (NFR-1).
 /// </summary>
-public sealed class FileChangeViewModel : ViewModelBase
+public sealed partial class FileChangeViewModel : ViewModelBase
 {
     private readonly FileChange _model;
 
-    public FileChangeViewModel(FileChange model) => _model = model;
+    public FileChangeViewModel(FileChange model)
+    {
+        _model = model;
+        _linesAdded = model.LinesAdded;
+        _linesDeleted = model.LinesDeleted;
+        _isBinary = model.IsBinary;
+    }
 
     /// <summary>The underlying change, used to build the diff.</summary>
     public FileChange Model => _model;
@@ -19,9 +27,37 @@ public sealed class FileChangeViewModel : ViewModelBase
     public string Path => _model.Path;
     public ChangeKind Kind => _model.Kind;
     public string? OldPath => _model.OldPath;
-    public bool IsBinary => _model.IsBinary;
-    public int LinesAdded => _model.LinesAdded;
-    public int LinesDeleted => _model.LinesDeleted;
+
+    [ObservableProperty]
+    private int _linesAdded;
+
+    [ObservableProperty]
+    private int _linesDeleted;
+
+    [ObservableProperty]
+    private bool _isBinary;
+
+    partial void OnLinesAddedChanged(int value)
+    {
+        OnPropertyChanged(nameof(AddedText));
+        OnPropertyChanged(nameof(HasCounts));
+    }
+
+    partial void OnLinesDeletedChanged(int value)
+    {
+        OnPropertyChanged(nameof(DeletedText));
+        OnPropertyChanged(nameof(HasCounts));
+    }
+
+    partial void OnIsBinaryChanged(bool value) => OnPropertyChanged(nameof(HasCounts));
+
+    /// <summary>Applies the deferred line counts and binary flag from the stats pass.</summary>
+    public void ApplyStats(FileStats stats)
+    {
+        LinesAdded = stats.LinesAdded;
+        LinesDeleted = stats.LinesDeleted;
+        IsBinary = stats.IsBinary;
+    }
 
     public string FileName => System.IO.Path.GetFileName(_model.Path);
 

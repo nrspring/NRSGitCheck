@@ -305,6 +305,43 @@ public partial class MainWindowViewModel : ViewModelBase
         _allFiles = changes.Select(c => new FileChangeViewModel(c)).ToList();
         SelectedFile = null;
         ApplyFilter();
+        StartStatsLoad(); // fill tracked-file +/- counts in the background
+    }
+
+    // --- Deferred line counts (NFR-1) ---------------------------------------
+
+    /// <summary>Identifies the latest stats request so stale results are ignored.</summary>
+    private int _statsSequence;
+
+    private async void StartStatsLoad()
+    {
+        var seq = ++_statsSequence;
+        var sha = _currentBaseSha;
+        if (sha is null)
+            return;
+
+        var byPath = new Dictionary<string, FileChangeViewModel>(StringComparer.Ordinal);
+        foreach (var f in _allFiles)
+            byPath[f.Path] = f;
+
+        IReadOnlyDictionary<string, FileStats> stats;
+        try
+        {
+            stats = await Task.Run(() => _git.GetChangeStats(sha));
+        }
+        catch
+        {
+            return; // counts are a nicety; never let a background failure surface
+        }
+
+        if (seq != _statsSequence)
+            return; // superseded by a newer refresh
+
+        foreach (var (path, stat) in stats)
+            if (byPath.TryGetValue(path, out var vm))
+                vm.ApplyStats(stat);
+
+        UpdateChangedFilesSummary();
     }
 
     partial void OnSelectedFileChanged(FileChangeViewModel? value)
@@ -422,6 +459,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void ClearFiles()
     {
+        _statsSequence++; // invalidate any in-flight background stats
         _allFiles = new List<FileChangeViewModel>();
         RootNodes.Clear();
         _orderedFileNodes.Clear();
@@ -439,9 +477,22 @@ public partial class MainWindowViewModel : ViewModelBase
             : _allFiles.Where(f => f.Path.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToList();
 
         BuildTree(visible);
+        UpdateChangedFilesSummary(visible.Count);
 
+        // Re-point the tree's highlight at the still-selected file, if it survived
+        // the filter. Leaves the diff untouched (SelectedFile is unchanged).
+        SyncSelectedNode(SelectedFile);
+    }
+
+    /// <summary>Recomputes the "N changed files  +A −D" summary. Counts reflect
+    /// whatever line stats are currently known (they fill in asynchronously).</summary>
+    private void UpdateChangedFilesSummary(int? shownCount = null)
+    {
+        var filter = FileFilter?.Trim();
         var total = _allFiles.Count;
-        var shown = visible.Count;
+        var shown = shownCount ?? (string.IsNullOrEmpty(filter)
+            ? total
+            : _allFiles.Count(f => f.Path.Contains(filter, StringComparison.OrdinalIgnoreCase)));
         var added = _allFiles.Sum(f => f.LinesAdded);
         var deleted = _allFiles.Sum(f => f.LinesDeleted);
 
@@ -450,10 +501,6 @@ public partial class MainWindowViewModel : ViewModelBase
             : $"{shown} of {total} files";
 
         ChangedFilesSummary = total == 0 ? "No changes" : $"{countText}    +{added}  −{deleted}";
-
-        // Re-point the tree's highlight at the still-selected file, if it survived
-        // the filter. Leaves the diff untouched (SelectedFile is unchanged).
-        SyncSelectedNode(SelectedFile);
     }
 
     // --- Folder/file tree construction --------------------------------------

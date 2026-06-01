@@ -23,6 +23,7 @@ public sealed class SyntaxHighlighterTests
         public RepositorySnapshot OpenRepository(string path) => throw new System.NotSupportedException();
         public ResolvedComparison ResolveComparison(ComparisonMode mode, string? a, string? b) => throw new System.NotSupportedException();
         public IReadOnlyList<FileChange> GetChanges(string baseCommitSha) => throw new System.NotSupportedException();
+        public IReadOnlyDictionary<string, FileStats> GetChangeStats(string baseCommitSha) => throw new System.NotSupportedException();
     }
 
     private sealed class StubSettings : ISettingsService

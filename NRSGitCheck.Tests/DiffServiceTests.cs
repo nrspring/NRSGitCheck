@@ -24,6 +24,7 @@ public sealed class DiffServiceTests
         public RepositorySnapshot OpenRepository(string path) => throw new NotSupportedException();
         public ResolvedComparison ResolveComparison(ComparisonMode mode, string? otherBranch, string? parentBranch) => throw new NotSupportedException();
         public IReadOnlyList<FileChange> GetChanges(string baseCommitSha) => throw new NotSupportedException();
+        public IReadOnlyDictionary<string, FileStats> GetChangeStats(string baseCommitSha) => throw new NotSupportedException();
     }
 
     private static FileChange Change(ChangeKind kind, bool isBinary = false) =>

@@ -141,6 +141,27 @@ public sealed class GitServiceTests : IDisposable
         Assert.Equal(0, bin.LinesAdded);
     }
 
+    [Fact]
+    public void GetChangeStats_reports_line_counts_for_tracked_changes()
+    {
+        var dir = InitRepo("repo");
+        Commit(dir, "a.txt", "one\ntwo\n");
+        File.WriteAllText(Path.Combine(dir, "a.txt"), "one\ntwo\nthree\n"); // +1 line
+        File.WriteAllText(Path.Combine(dir, "c.txt"), "new\n");             // untracked
+
+        _git.OpenRepository(dir);
+        var head = _git.ResolveComparison(ComparisonMode.LastCommit, null, null).Sha!;
+
+        // The fast list carries no tracked counts yet...
+        var changes = _git.GetChanges(head);
+        Assert.Equal(0, changes.Single(c => c.Path == "a.txt").LinesAdded);
+
+        // ...the background stats pass provides them, and omits untracked files.
+        var stats = _git.GetChangeStats(head);
+        Assert.Equal(1, stats["a.txt"].LinesAdded);
+        Assert.False(stats.ContainsKey("c.txt"));
+    }
+
     private static ChangeKind Kind(System.Collections.Generic.IReadOnlyList<FileChange> changes, string path) =>
         changes.Single(c => c.Path == path).Kind;
 
