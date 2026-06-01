@@ -113,8 +113,17 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private List<FileChangeViewModel> _allFiles = new();
 
-    public ObservableCollection<FileChangeViewModel> Files { get; } = new();
+    /// <summary>Root of the folder/file tree bound to the changed-files view.</summary>
+    public ObservableCollection<FileTreeNode> RootNodes { get; } = new();
 
+    /// <summary>File leaves in visual (depth-first) order, for keyboard navigation.</summary>
+    private readonly List<FileNode> _orderedFileNodes = new();
+
+    /// <summary>The node selected in the tree (folder or file).</summary>
+    [ObservableProperty]
+    private FileTreeNode? _selectedNode;
+
+    /// <summary>The currently shown file; drives the diff pane.</summary>
     [ObservableProperty]
     private FileChangeViewModel? _selectedFile;
 
@@ -193,7 +202,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private async Task OpenPathAsync(string path)
     {
         ErrorMessage = null;
-        IsBusy = true;
+        using var _ = BeginBusy();
         try
         {
             var snapshot = await Task.Run(() => _git.OpenRepository(path));
@@ -211,9 +220,13 @@ public partial class MainWindowViewModel : ViewModelBase
             ErrorMessage = ex.Message;
             Status = "Open a repository to begin.";
         }
-        finally
+        catch (Exception ex)
         {
-            IsBusy = false;
+            // Unexpected failures (native LibGit2Sharp / IO errors) must not crash
+            // the app; fall back to the empty state with a readable message (NFR-4).
+            HasRepo = false;
+            ErrorMessage = $"Could not open the repository: {ex.Message}";
+            Status = "Open a repository to begin.";
         }
     }
 
@@ -240,6 +253,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (!HasRepo)
             return;
 
+        using var _ = BeginBusy();
         try
         {
             var mode = SelectedMode.Mode;
@@ -273,6 +287,12 @@ public partial class MainWindowViewModel : ViewModelBase
             Status = ex.Message;
             ClearFiles();
         }
+        catch (Exception ex)
+        {
+            // Keep the open repo on screen but surface the failure (NFR-4).
+            Status = $"Could not read changes: {ex.Message}";
+            ClearFiles();
+        }
     }
 
     private void PopulateFiles(IReadOnlyList<FileChange> changes)
@@ -293,6 +313,36 @@ public partial class MainWindowViewModel : ViewModelBase
             _ = Diff.LoadAsync(_currentBaseSha, value.Model, _nextLoadPosition);
             _nextLoadPosition = HunkPosition.First;
         }
+
+        SyncSelectedNode(value);
+    }
+
+    /// <summary>Selecting a file node shows its diff; folder nodes are inert.</summary>
+    partial void OnSelectedNodeChanged(FileTreeNode? value)
+    {
+        if (value is FileNode fn)
+            SelectedFile = fn.File;
+    }
+
+    /// <summary>Highlights the tree node for <paramref name="file"/>, expanding its
+    /// ancestors so it is visible. Setting the same node again is a no-op, so this
+    /// stays loop-free with <see cref="OnSelectedNodeChanged"/>.</summary>
+    private void SyncSelectedNode(FileChangeViewModel? file)
+    {
+        if (file is null)
+        {
+            SelectedNode = null;
+            return;
+        }
+
+        var node = _orderedFileNodes.FirstOrDefault(n => n.File == file);
+        if (node is null)
+            return;
+
+        for (var p = node.Parent; p is not null; p = p.Parent)
+            p.IsExpanded = true;
+
+        SelectedNode = node;
     }
 
     // --- Keyboard navigation (FR-24..27) ------------------------------------
@@ -310,19 +360,22 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public void NextFile()
     {
-        if (Files.Count == 0)
+        if (_orderedFileNodes.Count == 0)
             return;
-        var index = SelectedFile is null ? -1 : Files.IndexOf(SelectedFile);
-        SelectedFile = Files[Math.Min(index + 1, Files.Count - 1)];
+        var index = CurrentFileNodeIndex();
+        SelectedFile = _orderedFileNodes[Math.Min(index + 1, _orderedFileNodes.Count - 1)].File;
     }
 
     public void PreviousFile()
     {
-        if (Files.Count == 0)
+        if (_orderedFileNodes.Count == 0)
             return;
-        var index = SelectedFile is null ? Files.Count : Files.IndexOf(SelectedFile);
-        SelectedFile = Files[Math.Max(index - 1, 0)];
+        var index = SelectedFile is null ? _orderedFileNodes.Count : CurrentFileNodeIndex();
+        SelectedFile = _orderedFileNodes[Math.Max(index - 1, 0)].File;
     }
+
+    private int CurrentFileNodeIndex() =>
+        SelectedFile is null ? -1 : _orderedFileNodes.FindIndex(n => n.File == SelectedFile);
 
     public void NextHunk()
     {
@@ -365,7 +418,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private void ClearFiles()
     {
         _allFiles = new List<FileChangeViewModel>();
-        Files.Clear();
+        RootNodes.Clear();
+        _orderedFileNodes.Clear();
+        SelectedNode = null;
         SelectedFile = null;
         ChangedFilesSummary = string.Empty;
     }
@@ -374,16 +429,14 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         var filter = FileFilter?.Trim();
 
-        Files.Clear();
-        foreach (var f in _allFiles)
-        {
-            if (string.IsNullOrEmpty(filter) ||
-                f.Path.Contains(filter, System.StringComparison.OrdinalIgnoreCase))
-                Files.Add(f);
-        }
+        var visible = string.IsNullOrEmpty(filter)
+            ? _allFiles
+            : _allFiles.Where(f => f.Path.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        BuildTree(visible);
 
         var total = _allFiles.Count;
-        var shown = Files.Count;
+        var shown = visible.Count;
         var added = _allFiles.Sum(f => f.LinesAdded);
         var deleted = _allFiles.Sum(f => f.LinesDeleted);
 
@@ -392,6 +445,105 @@ public partial class MainWindowViewModel : ViewModelBase
             : $"{shown} of {total} files";
 
         ChangedFilesSummary = total == 0 ? "No changes" : $"{countText}    +{added}  −{deleted}";
+
+        // Re-point the tree's highlight at the still-selected file, if it survived
+        // the filter. Leaves the diff untouched (SelectedFile is unchanged).
+        SyncSelectedNode(SelectedFile);
+    }
+
+    // --- Folder/file tree construction --------------------------------------
+
+    private void BuildTree(IReadOnlyList<FileChangeViewModel> files)
+    {
+        RootNodes.Clear();
+        _orderedFileNodes.Clear();
+
+        var folders = new Dictionary<string, FolderNode>(StringComparer.OrdinalIgnoreCase);
+        var rootFolders = new List<FolderNode>();
+        var rootFiles = new List<FileNode>();
+
+        foreach (var f in files)
+        {
+            var dir = f.Directory; // forward-slashed directory, or null at the repo root
+            if (string.IsNullOrEmpty(dir))
+            {
+                rootFiles.Add(new FileNode(f, null));
+                continue;
+            }
+
+            var parent = EnsureFolder(dir, folders, rootFolders);
+            parent.Children.Add(new FileNode(f, parent));
+            for (var p = parent; p is not null; p = p.Parent)
+                p.ChangedCount++;
+        }
+
+        // Order every level: subfolders (alpha) before files (alpha).
+        foreach (var folder in rootFolders)
+            SortFolder(folder);
+
+        foreach (var folder in rootFolders.OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase))
+            RootNodes.Add(folder);
+        foreach (var file in rootFiles.OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase))
+            RootNodes.Add(file);
+
+        foreach (var node in RootNodes)
+            CollectFileNodes(node);
+    }
+
+    /// <summary>Finds or creates the folder chain for a forward-slashed directory path.</summary>
+    private static FolderNode EnsureFolder(
+        string dir, Dictionary<string, FolderNode> folders, List<FolderNode> rootFolders)
+    {
+        if (folders.TryGetValue(dir, out var existing))
+            return existing;
+
+        var slash = dir.LastIndexOf('/');
+        FolderNode node;
+        if (slash < 0)
+        {
+            node = new FolderNode(dir, null);
+            rootFolders.Add(node);
+        }
+        else
+        {
+            var parent = EnsureFolder(dir[..slash], folders, rootFolders);
+            node = new FolderNode(dir[(slash + 1)..], parent);
+            parent.Children.Add(node);
+        }
+
+        folders[dir] = node;
+        return node;
+    }
+
+    private static void SortFolder(FolderNode folder)
+    {
+        var subfolders = folder.Children.OfType<FolderNode>()
+            .OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase).ToList();
+        var files = folder.Children.OfType<FileNode>()
+            .OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase).ToList();
+
+        folder.Children.Clear();
+        foreach (var sub in subfolders)
+        {
+            folder.Children.Add(sub);
+            SortFolder(sub);
+        }
+        foreach (var file in files)
+            folder.Children.Add(file);
+    }
+
+    private void CollectFileNodes(FileTreeNode node)
+    {
+        switch (node)
+        {
+            case FileNode fn:
+                _orderedFileNodes.Add(fn);
+                break;
+            case FolderNode folder:
+                foreach (var child in folder.Children)
+                    CollectFileNodes(child);
+                break;
+        }
     }
 
     // --- Recent repositories ------------------------------------------------
@@ -414,6 +566,42 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     // --- Helpers ------------------------------------------------------------
+
+    /// <summary>
+    /// Sets <see cref="IsBusy"/> for the lifetime of the returned scope. Nesting is
+    /// reference-counted so an outer open that awaits an inner refresh stays busy
+    /// until the outermost scope is disposed.
+    /// </summary>
+    private IDisposable BeginBusy()
+    {
+        _busyDepth++;
+        IsBusy = true;
+        return new BusyScope(this);
+    }
+
+    private int _busyDepth;
+
+    private void EndBusy()
+    {
+        if (--_busyDepth <= 0)
+        {
+            _busyDepth = 0;
+            IsBusy = false;
+        }
+    }
+
+    private sealed class BusyScope(MainWindowViewModel owner) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+            _disposed = true;
+            owner.EndBusy();
+        }
+    }
 
     /// <summary>Re-entrancy guard so default assignments during open don't each resolve.</summary>
     private bool _suppressRefresh;

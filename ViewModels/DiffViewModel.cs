@@ -45,6 +45,10 @@ public partial class DiffViewModel : ViewModelBase
     [ObservableProperty]
     private string? _fileName;
 
+    /// <summary>Full repo-relative path of the selected file, shown in the diff header.</summary>
+    [ObservableProperty]
+    private string? _filePath;
+
     [ObservableProperty]
     private string _message = "Select a file to view its changes.";
 
@@ -121,6 +125,7 @@ public partial class DiffViewModel : ViewModelBase
         IsTooLarge = false;
         HasChanges = false;
         FileName = null;
+        FilePath = null;
         Message = "Select a file to view its changes.";
         RaiseShowState();
     }
@@ -128,6 +133,7 @@ public partial class DiffViewModel : ViewModelBase
     public async Task LoadAsync(string baseSha, FileChange change, HunkPosition position = HunkPosition.First)
     {
         FileName = System.IO.Path.GetFileName(change.Path);
+        FilePath = change.Path;
         var doc = await Task.Run(() => _diff.BuildDiff(baseSha, change));
         Apply(doc, position);
     }
