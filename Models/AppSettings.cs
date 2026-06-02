@@ -23,6 +23,12 @@ public sealed class AppSettings
     /// <summary>Whether to render the whole file rather than just changed regions.</summary>
     public bool ShowWholeFileDiff { get; set; }
 
+    /// <summary>Periodically re-check the open repository for new changes (FR-13).</summary>
+    public bool AutoRefreshEnabled { get; set; } = true;
+
+    /// <summary>How often (seconds) auto-refresh polls the repository when enabled.</summary>
+    public int AutoRefreshIntervalSeconds { get; set; } = 5;
+
     /// <summary>Recently opened repositories, most-recent first (FR-3, FR-4).</summary>
     public List<RecentRepository> RecentRepositories { get; set; } = new();
 }

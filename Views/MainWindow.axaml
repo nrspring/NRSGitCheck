@@ -101,6 +101,8 @@
           </StackPanel>
 
           <Button Content="Refresh" Command="{Binding RefreshCommand}" VerticalAlignment="Center" />
+          <CheckBox Content="Auto" IsChecked="{Binding AutoRefreshEnabled}" VerticalAlignment="Center"
+                    ToolTip.Tip="Periodically check the repository for new changes" />
         </WrapPanel>
        </Panel>
        </DockPanel>

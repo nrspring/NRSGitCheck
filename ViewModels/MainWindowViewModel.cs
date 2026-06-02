@@ -40,6 +40,7 @@ public partial class MainWindowViewModel : ViewModelBase
                         ?? ComparisonModes[0];
         _selectedTheme = ThemeModes.FirstOrDefault(o => o.Mode == settings.Settings.ThemeMode)
                         ?? ThemeModes[0];
+        _autoRefreshEnabled = settings.Settings.AutoRefreshEnabled;
 
         // Re-render the open diff when the effective theme changes so syntax
         // colors switch with it (FR-20, FR-28).
@@ -201,6 +202,111 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private Task Refresh() => RefreshComparisonAsync();
 
+    // --- Auto-refresh -------------------------------------------------------
+
+    /// <summary>Whether the open repository is polled for new changes on an interval.</summary>
+    [ObservableProperty]
+    private bool _autoRefreshEnabled;
+
+    /// <summary>Polling interval in seconds when <see cref="AutoRefreshEnabled"/> is on.</summary>
+    public int AutoRefreshIntervalSeconds => Math.Max(1, _settings.Settings.AutoRefreshIntervalSeconds);
+
+    /// <summary>Raised when auto-refresh settings change so the view can (re)arm its timer.</summary>
+    public event Action? AutoRefreshConfigChanged;
+
+    /// <summary>Signature of the last applied change set; lets auto-refresh skip no-op ticks.</summary>
+    private string? _lastChangeSignature;
+    private bool _autoRefreshing;
+
+    partial void OnAutoRefreshEnabledChanged(bool value)
+    {
+        _settings.Settings.AutoRefreshEnabled = value;
+        _settings.Save();
+        AutoRefreshConfigChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// A quiet, best-effort poll: re-resolves the comparison and re-reads the change
+    /// set on a worker thread, and only touches the UI when the set actually changed.
+    /// Unlike <see cref="RefreshComparisonAsync"/> it shows no busy spinner and keeps
+    /// the current file selection, so it never disrupts what the user is looking at.
+    /// </summary>
+    public async Task AutoRefreshAsync()
+    {
+        if (!AutoRefreshEnabled || !HasRepo || IsBusy || _autoRefreshing)
+            return;
+
+        _autoRefreshing = true;
+        try
+        {
+            var mode = SelectedMode.Mode;
+            var branch = SelectedBranch;
+            var parent = ParentBranch;
+
+            var result = await Task.Run(() =>
+            {
+                var resolved = _git.ResolveComparison(mode, branch, parent);
+                if (!resolved.Found || resolved.Sha is null)
+                    return (resolved, Changes: (IReadOnlyList<FileChange>?)null, Signature: SignatureFor(resolved.Sha, null));
+
+                var changes = _git.GetChanges(resolved.Sha);
+                return (resolved, Changes: (IReadOnlyList<FileChange>?)changes, Signature: SignatureFor(resolved.Sha, changes));
+            });
+
+            if (result.Signature == _lastChangeSignature)
+                return; // nothing new since the last check
+
+            ResolvedTargetLabel = result.resolved.Label;
+
+            if (result.resolved.Found && result.resolved.Sha is { } sha && result.Changes is not null)
+            {
+                _currentBaseSha = sha;
+                var keepPath = SelectedFile?.Path;
+                PopulateFiles(result.Changes);     // refreshes _lastChangeSignature
+                RestoreSelection(keepPath);
+                Status = $"Comparing working tree against {result.resolved.Label}.";
+            }
+            else
+            {
+                _currentBaseSha = null;
+                ClearFiles();
+                _lastChangeSignature = result.Signature;
+            }
+        }
+        catch
+        {
+            // Auto-refresh is best-effort; never surface its failures or disrupt the UI.
+        }
+        finally
+        {
+            _autoRefreshing = false;
+        }
+    }
+
+    /// <summary>Re-selects the file at <paramref name="path"/> after a repopulate, if it survived.</summary>
+    private void RestoreSelection(string? path)
+    {
+        if (path is null)
+            return;
+
+        var match = _allFiles.FirstOrDefault(f => f.Path == path);
+        if (match is not null)
+            SelectedFile = match;
+    }
+
+    /// <summary>Cheap fingerprint of a change set: base SHA plus each file's path and kind.</summary>
+    private static string SignatureFor(string? sha, IReadOnlyList<FileChange>? changes)
+    {
+        if (changes is null)
+            return $"{sha}|<none>";
+
+        var sb = new System.Text.StringBuilder(sha);
+        sb.Append('|');
+        foreach (var c in changes.OrderBy(c => c.Path, StringComparer.Ordinal))
+            sb.Append(c.Path).Append(':').Append((int)c.Kind).Append(';');
+        return sb.ToString();
+    }
+
     // --- Core flows ---------------------------------------------------------
 
     private async Task OpenPathAsync(string path)
@@ -302,6 +408,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void PopulateFiles(IReadOnlyList<FileChange> changes)
     {
+        _lastChangeSignature = SignatureFor(_currentBaseSha, changes);
         _allFiles = changes.Select(c => new FileChangeViewModel(c)).ToList();
         SelectedFile = null;
         ApplyFilter();
@@ -460,6 +567,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private void ClearFiles()
     {
         _statsSequence++; // invalidate any in-flight background stats
+        _lastChangeSignature = null;
         _allFiles = new List<FileChangeViewModel>();
         RootNodes.Clear();
         _orderedFileNodes.Clear();

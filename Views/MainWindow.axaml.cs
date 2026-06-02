@@ -1,6 +1,7 @@
 using System;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Threading;
 using NRSGitCheck.ViewModels;
 
 namespace NRSGitCheck.Views;
@@ -8,6 +9,7 @@ namespace NRSGitCheck.Views;
 public partial class MainWindow : Window
 {
     private MainWindowViewModel? _vm;
+    private DispatcherTimer? _autoRefreshTimer;
 
     public MainWindow()
     {
@@ -23,17 +25,57 @@ public partial class MainWindow : Window
         // (the folder picker and storage provider need a live TopLevel).
         if (DataContext is MainWindowViewModel vm)
             _ = vm.InitializeAsync();
+
+        ConfigureAutoRefresh();
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _autoRefreshTimer?.Stop();
+        if (_vm is not null)
+            _vm.AutoRefreshConfigChanged -= ConfigureAutoRefresh;
+        base.OnClosed(e);
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)
     {
         if (_vm is not null)
+        {
             _vm.FocusFilterRequested -= FocusFilter;
+            _vm.AutoRefreshConfigChanged -= ConfigureAutoRefresh;
+        }
 
         _vm = DataContext as MainWindowViewModel;
 
         if (_vm is not null)
+        {
             _vm.FocusFilterRequested += FocusFilter;
+            _vm.AutoRefreshConfigChanged += ConfigureAutoRefresh;
+        }
+
+        ConfigureAutoRefresh();
+    }
+
+    /// <summary>(Re)arms the background poll that asks the view model to check the
+    /// repository for new changes, honoring the enabled flag and interval.</summary>
+    private void ConfigureAutoRefresh()
+    {
+        _autoRefreshTimer?.Stop();
+
+        if (_vm is null || !_vm.AutoRefreshEnabled)
+            return;
+
+        _autoRefreshTimer ??= new DispatcherTimer();
+        _autoRefreshTimer.Interval = TimeSpan.FromSeconds(_vm.AutoRefreshIntervalSeconds);
+        _autoRefreshTimer.Tick -= OnAutoRefreshTick;
+        _autoRefreshTimer.Tick += OnAutoRefreshTick;
+        _autoRefreshTimer.Start();
+    }
+
+    private void OnAutoRefreshTick(object? sender, EventArgs e)
+    {
+        if (_vm is not null)
+            _ = _vm.AutoRefreshAsync();
     }
 
     private void FocusFilter() => this.FindControl<TextBox>("FilterBox")?.Focus();
