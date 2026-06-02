@@ -79,6 +79,7 @@
                ItemsSource="{Binding InlineRows}"
                Background="Transparent"
                BorderThickness="0"
+               ScrollViewer.HorizontalScrollBarVisibility="Auto"
                IsVisible="{Binding IsInline}">
         <ListBox.DataTemplates>
           <DataTemplate DataType="vm:HunkSeparatorRow">
@@ -102,24 +103,25 @@
         </ListBox.DataTemplates>
       </ListBox>
 
-      <!-- Side-by-side -->
-      <ListBox Grid.Row="1"
-               Name="SideList"
-               Classes="diff"
-               ItemsSource="{Binding SideRows}"
-               Background="Transparent"
-               BorderThickness="0"
-               IsVisible="{Binding IsSideBySide}">
-        <ListBox.DataTemplates>
-          <DataTemplate DataType="vm:HunkSeparatorRow">
-            <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" Padding="8,2">
-              <TextBlock Text="{Binding Header}" FontFamily="{StaticResource MonoFont}" FontSize="11" Opacity="0.6" />
-            </Border>
-          </DataTemplate>
-          <DataTemplate DataType="vm:SideDiffRow">
-            <Grid ColumnDefinitions="*,1,*">
-              <Border Grid.Column="0"
-                      Background="{Binding Left, Converter={x:Static conv:SideCellBackgroundConverter.Instance}}">
+      <!-- Side-by-side: two equal-width panes, each with its own horizontal
+           scrollbar; vertical scrolling is kept in sync via code-behind. -->
+      <Grid Grid.Row="1" ColumnDefinitions="*,1,*" IsVisible="{Binding IsSideBySide}">
+
+        <ListBox Grid.Column="0"
+                 Name="SideLeftList"
+                 Classes="diff"
+                 ItemsSource="{Binding SideRows}"
+                 Background="Transparent"
+                 BorderThickness="0"
+                 ScrollViewer.HorizontalScrollBarVisibility="Auto">
+          <ListBox.DataTemplates>
+            <DataTemplate DataType="vm:HunkSeparatorRow">
+              <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" Padding="8,2">
+                <TextBlock Text="{Binding Header}" FontFamily="{StaticResource MonoFont}" FontSize="11" Opacity="0.6" />
+              </Border>
+            </DataTemplate>
+            <DataTemplate DataType="vm:SideDiffRow">
+              <Border Background="{Binding Left, Converter={x:Static conv:SideCellBackgroundConverter.Instance}}">
                 <Grid ColumnDefinitions="44,*">
                   <TextBlock Grid.Column="0" Classes="gutter" Text="{Binding Left.Number}" />
                   <ItemsControl Grid.Column="1"
@@ -128,11 +130,27 @@
                                 ItemTemplate="{StaticResource SegmentTemplate}" />
                 </Grid>
               </Border>
+            </DataTemplate>
+          </ListBox.DataTemplates>
+        </ListBox>
 
-              <Border Grid.Column="1" Background="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+        <Border Grid.Column="1" Background="{DynamicResource SystemControlForegroundBaseLowBrush}" />
 
-              <Border Grid.Column="2"
-                      Background="{Binding Right, Converter={x:Static conv:SideCellBackgroundConverter.Instance}}">
+        <ListBox Grid.Column="2"
+                 Name="SideRightList"
+                 Classes="diff"
+                 ItemsSource="{Binding SideRows}"
+                 Background="Transparent"
+                 BorderThickness="0"
+                 ScrollViewer.HorizontalScrollBarVisibility="Auto">
+          <ListBox.DataTemplates>
+            <DataTemplate DataType="vm:HunkSeparatorRow">
+              <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" Padding="8,2">
+                <TextBlock Text="{Binding Header}" FontFamily="{StaticResource MonoFont}" FontSize="11" Opacity="0.6" />
+              </Border>
+            </DataTemplate>
+            <DataTemplate DataType="vm:SideDiffRow">
+              <Border Background="{Binding Right, Converter={x:Static conv:SideCellBackgroundConverter.Instance}}">
                 <Grid ColumnDefinitions="44,*">
                   <TextBlock Grid.Column="0" Classes="gutter" Text="{Binding Right.Number}" />
                   <ItemsControl Grid.Column="1"
@@ -141,10 +159,11 @@
                                 ItemTemplate="{StaticResource SegmentTemplate}" />
                 </Grid>
               </Border>
-            </Grid>
-          </DataTemplate>
-        </ListBox.DataTemplates>
-      </ListBox>
+            </DataTemplate>
+          </ListBox.DataTemplates>
+        </ListBox>
+
+      </Grid>
 
     </Grid>
   </Panel>
