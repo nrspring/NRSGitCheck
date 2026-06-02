@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using NRSGitCheck.Models;
 using NRSGitCheck.Services;
@@ -144,6 +145,71 @@ public sealed class DiffEngineTests
             contextLines: 3);
 
         Assert.Equal(2, doc.Hunks.Count);
+    }
+
+    public static IEnumerable<object[]> DiffScenarios()
+    {
+        // identical
+        yield return new object[] { "a\nb\nc\n", "a\nb\nc\n" };
+        // single modification mid-file
+        yield return new object[]
+        {
+            string.Join("\n", Enumerable.Range(1, 40).Select(i => $"line{i}")) + "\n",
+            string.Join("\n", Enumerable.Range(1, 40).Select(i => i == 20 ? "x" : $"line{i}")) + "\n",
+        };
+        // two far-apart changes (forces a hunk cut while streaming)
+        yield return new object[]
+        {
+            string.Join("\n", Enumerable.Range(1, 60).Select(i => $"line{i}")) + "\n",
+            string.Join("\n", Enumerable.Range(1, 60).Select(i => i is 5 or 50 ? $"line{i}-x" : $"line{i}")) + "\n",
+        };
+        // many adjacent changes + repeated lines (stresses anchoring)
+        yield return new object[]
+        {
+            "a\nb\nb\nc\nd\nb\ne\nf\n",
+            "a\nb\nc\nb\nd\nb\nX\nf\n",
+        };
+        // pure add and pure delete
+        yield return new object[] { "", "one\ntwo\nthree\n" };
+        yield return new object[] { "one\ntwo\nthree\n", "" };
+    }
+
+    [Theory]
+    [MemberData(nameof(DiffScenarios))]
+    public void Streamed_hunks_match_the_eager_diff(string oldText, string newText)
+    {
+        var eager = DiffEngine.Compute(oldText, newText, contextLines: 3);
+        var streamed = DiffEngine.ComputeHunkStream(oldText, newText, contextLines: 3).ToList();
+
+        Assert.Equal(eager.Hunks.Count, streamed.Count);
+        for (var h = 0; h < streamed.Count; h++)
+        {
+            Assert.Equal(eager.Hunks[h].Header, streamed[h].Header);
+
+            var a = eager.Hunks[h].Lines;
+            var b = streamed[h].Lines;
+            Assert.Equal(a.Count, b.Count);
+            for (var i = 0; i < a.Count; i++)
+            {
+                Assert.Equal(a[i].Kind, b[i].Kind);
+                Assert.Equal(a[i].Text, b[i].Text);
+                Assert.Equal(a[i].OldLineNumber, b[i].OldLineNumber);
+                Assert.Equal(a[i].NewLineNumber, b[i].NewLineNumber);
+            }
+        }
+    }
+
+    [Fact]
+    public void Streamed_whole_file_matches_eager_whole_file()
+    {
+        var oldText = string.Join("\n", Enumerable.Range(1, 30).Select(i => $"line{i}")) + "\n";
+        var newText = string.Join("\n", Enumerable.Range(1, 30).Select(i => i == 15 ? "changed" : $"line{i}")) + "\n";
+
+        var eager = DiffEngine.Compute(oldText, newText, contextLines: 3, wholeFile: true);
+        var streamed = DiffEngine.ComputeHunkStream(oldText, newText, contextLines: 3, wholeFile: true).ToList();
+
+        Assert.Single(streamed);
+        Assert.Equal(eager.Hunks[0].Lines.Count, streamed[0].Lines.Count);
     }
 
     [Fact]

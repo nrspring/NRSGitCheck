@@ -135,6 +135,7 @@ public partial class DiffViewModel : ViewModelBase
 
     public void Clear()
     {
+        _loadGeneration++; // abort any in-flight progressive population
         InlineRows.Clear();
         SideRows.Clear();
         _inlineAnchors.Clear();
@@ -156,18 +157,41 @@ public partial class DiffViewModel : ViewModelBase
     private string? _lastBaseSha;
     private FileChange? _lastChange;
 
+    // Bumped on every load (and on Clear); lets an in-flight progressive
+    // population detect that a newer request has superseded it and bail out.
+    private int _loadGeneration;
+
+    /// <summary>One hunk's rows for both layouts, built off the UI thread.</summary>
+    private sealed record BuiltHunk(
+        List<object> InlineRows, object InlineAnchor,
+        List<object> SideRows, object SideAnchor);
+
     public async Task LoadAsync(string baseSha, FileChange change, HunkPosition position = HunkPosition.First)
     {
+        var gen = ++_loadGeneration;
         _lastBaseSha = baseSha;
         _lastChange = change;
         FileName = System.IO.Path.GetFileName(change.Path);
         FilePath = change.Path;
         var wholeFile = ShowWholeFile;
-        var doc = await Task.Run(() => _diff.BuildDiff(baseSha, change, wholeFile: wholeFile));
-        Apply(doc, position);
+
+        // Fetch content and resolve syntax highlighting off the UI thread; this
+        // also sets up the lazy hunk sequence (no diffing happens yet).
+        var stream = await Task.Run(() => _diff.BuildDiffStream(baseSha, change, wholeFile: wholeFile));
+
+        if (gen != _loadGeneration)
+            return; // a newer load superseded this one
+
+        await ApplyStreamAsync(stream, position, gen);
     }
 
-    private void Apply(DiffDocument doc, HunkPosition position)
+    /// <summary>
+    /// Consumes the hunk stream progressively: each hunk is diffed and turned into
+    /// rows on a worker thread, then appended on the UI thread. The diff for later
+    /// hunks therefore overlaps with rendering of earlier ones, so the top of a
+    /// large file is visible while the bottom is still being computed.
+    /// </summary>
+    private async Task ApplyStreamAsync(DiffStream stream, HunkPosition position, int gen)
     {
         InlineRows.Clear();
         SideRows.Clear();
@@ -175,30 +199,97 @@ public partial class DiffViewModel : ViewModelBase
         _sideAnchors.Clear();
         _currentHunkIndex = -1;
 
-        IsBinary = doc.IsBinary;
-        IsTooLarge = doc.IsTooLarge;
-        HasChanges = doc.HasChanges;
+        IsBinary = stream.IsBinary;
+        IsTooLarge = stream.IsTooLarge;
         HasContent = true;
+        HasChanges = false; // not known until the first hunk arrives
 
-        if (doc.IsBinary)
-            Message = "Binary file — no text diff.";
-        else if (doc.IsTooLarge)
-            Message = "File is too large to display.";
-        else if (!doc.HasChanges)
-            Message = "No textual differences.";
-        else
+        if (stream.IsBinary)
         {
-            BuildInline(doc);
-            BuildSide(doc);
+            Message = "Binary file — no text diff.";
+            RaiseShowState();
+            return;
+        }
 
-            if (ActiveAnchors.Count > 0)
+        if (stream.IsTooLarge)
+        {
+            Message = "File is too large to display.";
+            RaiseShowState();
+            return;
+        }
+
+        var enumerator = stream.Hunks.GetEnumerator();
+        try
+        {
+            var any = false;
+            var sinceYield = 0;
+            while (true)
             {
-                _currentHunkIndex = position == HunkPosition.Last ? ActiveAnchors.Count - 1 : 0;
+                // The expensive per-hunk diff + row build happen off the UI thread.
+                var built = await Task.Run(() => AdvanceAndBuild(enumerator));
+                if (gen != _loadGeneration)
+                    return;
+                if (built is null)
+                    break;
+
+                if (!any)
+                {
+                    any = true;
+                    HasChanges = true;
+                    RaiseShowState();
+                }
+
+                foreach (var row in built.InlineRows) InlineRows.Add(row);
+                foreach (var row in built.SideRows) SideRows.Add(row);
+                _inlineAnchors.Add(built.InlineAnchor);
+                _sideAnchors.Add(built.SideAnchor);
+
+                // Land on the first hunk the moment it appears.
+                if (_currentHunkIndex < 0 && position == HunkPosition.First)
+                {
+                    _currentHunkIndex = 0;
+                    ScrollToRequested?.Invoke(ActiveAnchors[0]);
+                }
+
+                // Periodically yield so layout/render can run between hunks.
+                sinceYield += built.InlineRows.Count;
+                if (sinceYield >= 400)
+                {
+                    sinceYield = 0;
+                    await Task.Yield();
+                    if (gen != _loadGeneration)
+                        return;
+                }
+            }
+
+            if (!any)
+            {
+                Message = "No textual differences.";
+                RaiseShowState();
+                return;
+            }
+
+            if (position == HunkPosition.Last && ActiveAnchors.Count > 0)
+            {
+                _currentHunkIndex = ActiveAnchors.Count - 1;
                 ScrollToRequested?.Invoke(ActiveAnchors[_currentHunkIndex]);
             }
         }
+        finally
+        {
+            enumerator.Dispose();
+        }
+    }
 
-        RaiseShowState();
+    private static BuiltHunk? AdvanceAndBuild(IEnumerator<DiffHunk> hunks)
+    {
+        if (!hunks.MoveNext())
+            return null;
+
+        var hunk = hunks.Current;
+        var (inlineRows, inlineAnchor) = BuildInlineHunk(hunk);
+        var (sideRows, sideAnchor) = BuildSideHunk(hunk);
+        return new BuiltHunk(inlineRows, inlineAnchor, sideRows, sideAnchor);
     }
 
     private void RaiseShowState()
@@ -209,75 +300,71 @@ public partial class DiffViewModel : ViewModelBase
 
     // --- Row building -------------------------------------------------------
 
-    private void BuildInline(DiffDocument doc)
+    private static (List<object> Rows, object Anchor) BuildInlineHunk(DiffHunk hunk)
     {
-        foreach (var hunk in doc.Hunks)
+        var rows = new List<object>(hunk.Lines.Count + 1);
+        var separator = new HunkSeparatorRow { Header = hunk.Header };
+        rows.Add(separator);
+        foreach (var line in hunk.Lines)
         {
-            var separator = new HunkSeparatorRow { Header = hunk.Header };
-            InlineRows.Add(separator);
-            _inlineAnchors.Add(separator);
-            foreach (var line in hunk.Lines)
+            rows.Add(new InlineDiffRow
             {
-                InlineRows.Add(new InlineDiffRow
+                OldNumber = line.OldLineNumber?.ToString() ?? string.Empty,
+                NewNumber = line.NewLineNumber?.ToString() ?? string.Empty,
+                Marker = line.Kind switch
                 {
-                    OldNumber = line.OldLineNumber?.ToString() ?? string.Empty,
-                    NewNumber = line.NewLineNumber?.ToString() ?? string.Empty,
-                    Marker = line.Kind switch
-                    {
-                        DiffLineKind.Added => "+",
-                        DiffLineKind.Removed => "−",
-                        _ => " ",
-                    },
-                    Kind = line.Kind,
-                    Segments = ToSegments(line),
-                });
-            }
+                    DiffLineKind.Added => "+",
+                    DiffLineKind.Removed => "−",
+                    _ => " ",
+                },
+                Kind = line.Kind,
+                Segments = ToSegments(line),
+            });
         }
+        return (rows, separator);
     }
 
-    private void BuildSide(DiffDocument doc)
+    private static (List<object> Rows, object Anchor) BuildSideHunk(DiffHunk hunk)
     {
-        foreach (var hunk in doc.Hunks)
+        var rows = new List<object>(hunk.Lines.Count + 1);
+        var separator = new HunkSeparatorRow { Header = hunk.Header };
+        rows.Add(separator);
+
+        var lines = hunk.Lines;
+        var i = 0;
+        while (i < lines.Count)
         {
-            var separator = new HunkSeparatorRow { Header = hunk.Header };
-            SideRows.Add(separator);
-            _sideAnchors.Add(separator);
-
-            var lines = hunk.Lines;
-            var i = 0;
-            while (i < lines.Count)
+            if (lines[i].Kind == DiffLineKind.Context)
             {
-                if (lines[i].Kind == DiffLineKind.Context)
+                rows.Add(new SideDiffRow
                 {
-                    SideRows.Add(new SideDiffRow
-                    {
-                        Left = Cell(lines[i], lines[i].OldLineNumber),
-                        Right = Cell(lines[i], lines[i].NewLineNumber),
-                    });
-                    i++;
-                    continue;
-                }
+                    Left = Cell(lines[i], lines[i].OldLineNumber),
+                    Right = Cell(lines[i], lines[i].NewLineNumber),
+                });
+                i++;
+                continue;
+            }
 
-                // Pair a run of removed lines with the following run of added lines.
-                var rStart = i;
-                while (i < lines.Count && lines[i].Kind == DiffLineKind.Removed) i++;
-                var rEnd = i;
-                var aStart = i;
-                while (i < lines.Count && lines[i].Kind == DiffLineKind.Added) i++;
-                var aEnd = i;
+            // Pair a run of removed lines with the following run of added lines.
+            var rStart = i;
+            while (i < lines.Count && lines[i].Kind == DiffLineKind.Removed) i++;
+            var rEnd = i;
+            var aStart = i;
+            while (i < lines.Count && lines[i].Kind == DiffLineKind.Added) i++;
+            var aEnd = i;
 
-                var rCount = rEnd - rStart;
-                var aCount = aEnd - aStart;
-                var max = Math.Max(rCount, aCount);
+            var rCount = rEnd - rStart;
+            var aCount = aEnd - aStart;
+            var max = Math.Max(rCount, aCount);
 
-                for (var k = 0; k < max; k++)
-                {
-                    var left = k < rCount ? Cell(lines[rStart + k], lines[rStart + k].OldLineNumber) : SideCell.Empty;
-                    var right = k < aCount ? Cell(lines[aStart + k], lines[aStart + k].NewLineNumber) : SideCell.Empty;
-                    SideRows.Add(new SideDiffRow { Left = left, Right = right });
-                }
+            for (var k = 0; k < max; k++)
+            {
+                var left = k < rCount ? Cell(lines[rStart + k], lines[rStart + k].OldLineNumber) : SideCell.Empty;
+                var right = k < aCount ? Cell(lines[aStart + k], lines[aStart + k].NewLineNumber) : SideCell.Empty;
+                rows.Add(new SideDiffRow { Left = left, Right = right });
             }
         }
+        return (rows, separator);
     }
 
     private static SideCell Cell(DiffLine line, int? number) => new()

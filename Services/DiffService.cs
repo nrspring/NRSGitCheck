@@ -48,6 +48,56 @@ public sealed class DiffService : IDiffService
         return doc;
     }
 
+    public DiffStream BuildDiffStream(string baseCommitSha, FileChange change, int contextLines = 3, bool wholeFile = false)
+    {
+        if (change.IsBinary)
+            return DiffStream.Binary();
+
+        var content = _git.GetFileContent(baseCommitSha, change);
+        if (content.IsBinary)
+            return DiffStream.Binary();
+
+        if (CountLines(content.OldText) > MaxDiffLines || CountLines(content.NewText) > MaxDiffLines)
+            return DiffStream.TooLarge();
+
+        // Highlighting must see the whole file (multi-line grammar state), so it is
+        // resolved up front; the slow part — the diff — then streams hunk by hunk.
+        var oldColors = _highlighter.Highlight(change.Path, content.OldText);
+        var newColors = _highlighter.Highlight(change.Path, content.NewText);
+
+        return new DiffStream
+        {
+            Hunks = HighlightedHunks(content, contextLines, wholeFile, oldColors, newColors),
+        };
+    }
+
+    private static IEnumerable<DiffHunk> HighlightedHunks(
+        FileContent content, int contextLines, bool wholeFile,
+        IReadOnlyList<IReadOnlyList<ColorSpan>>? oldColors,
+        IReadOnlyList<IReadOnlyList<ColorSpan>>? newColors)
+    {
+        foreach (var hunk in DiffEngine.ComputeHunkStream(content.OldText, content.NewText, contextLines, wholeFile))
+        {
+            if (oldColors is not null || newColors is not null)
+            {
+                foreach (var line in hunk.Lines)
+                {
+                    if (line.Kind == DiffLineKind.Removed)
+                    {
+                        if (oldColors is not null && line.OldLineNumber is { } o && o - 1 < oldColors.Count)
+                            line.Foreground = oldColors[o - 1];
+                    }
+                    else if (newColors is not null && line.NewLineNumber is { } nn && nn - 1 < newColors.Count)
+                    {
+                        line.Foreground = newColors[nn - 1];
+                    }
+                }
+            }
+
+            yield return hunk;
+        }
+    }
+
     /// <summary>
     /// Attaches the precomputed per-line foreground spans to each diff line,
     /// choosing the old or new tokenization by the line's role (FR-20).

@@ -23,6 +23,11 @@
   </UserControl.Resources>
 
   <UserControl.Styles>
+    <!-- Bottom padding so the floating horizontal scrollbar doesn't cover the
+         last few rows on long diffs; it scrolls into view at the end. -->
+    <Style Selector="ListBox.diff">
+      <Setter Property="Padding" Value="0,0,0,18" />
+    </Style>
     <!-- Strip ListBox selection chrome; diff rows are read-only. -->
     <Style Selector="ListBox.diff > ListBoxItem">
       <Setter Property="Padding" Value="0" />

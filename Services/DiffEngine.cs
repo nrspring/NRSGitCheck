@@ -26,31 +26,18 @@ public static class DiffEngine
         var oldLines = SplitLines(oldText);
         var newLines = SplitLines(newText);
 
-        var edits = Myers(oldLines, newLines, StringComparer.Ordinal);
-
-        var lines = new List<DiffLine>(edits.Count);
+        var lines = new List<DiffLine>();
         var added = 0;
         var removed = 0;
 
-        foreach (var edit in edits)
+        // Word segments are attached per changed block during enumeration, so no
+        // global pass is needed here.
+        foreach (var line in EnumerateDiff(oldLines, newLines))
         {
-            switch (edit.Op)
-            {
-                case Op.Equal:
-                    lines.Add(new DiffLine(DiffLineKind.Context, edit.OldIndex + 1, edit.NewIndex + 1, newLines[edit.NewIndex]));
-                    break;
-                case Op.Delete:
-                    lines.Add(new DiffLine(DiffLineKind.Removed, edit.OldIndex + 1, null, oldLines[edit.OldIndex]));
-                    removed++;
-                    break;
-                case Op.Insert:
-                    lines.Add(new DiffLine(DiffLineKind.Added, null, edit.NewIndex + 1, newLines[edit.NewIndex]));
-                    added++;
-                    break;
-            }
+            lines.Add(line);
+            if (line.Kind == DiffLineKind.Added) added++;
+            else if (line.Kind == DiffLineKind.Removed) removed++;
         }
-
-        AssignWordSegments(lines);
 
         var hunks = wholeFile ? BuildWholeFileHunks(lines) : BuildHunks(lines, contextLines);
 
@@ -60,6 +47,270 @@ public static class DiffEngine
             LinesAdded = added,
             LinesRemoved = removed,
         };
+    }
+
+    /// <summary>
+    /// Produces hunks lazily, in document order, so a consumer can render the top
+    /// of a file while the rest is still being diffed. The line-level diff runs
+    /// region-by-region (see <see cref="EnumerateDiff"/>); hunks are cut at points
+    /// guaranteed to fall between hunks, so the output is identical to the eager
+    /// <see cref="Compute"/> path — just streamed.
+    /// </summary>
+    public static IEnumerable<DiffHunk> ComputeHunkStream(
+        string oldText, string newText, int contextLines = DefaultContextLines, bool wholeFile = false)
+    {
+        var oldLines = SplitLines(oldText);
+        var newLines = SplitLines(newText);
+
+        if (wholeFile)
+        {
+            var all = new List<DiffLine>();
+            foreach (var line in EnumerateDiff(oldLines, newLines))
+                all.Add(line);
+            foreach (var hunk in BuildWholeFileHunks(all))
+                yield return hunk;
+            yield break;
+        }
+
+        var context = contextLines;
+        var buffer = new List<DiffLine>();
+        var trailingContext = 0;
+        var hasChange = false;
+
+        foreach (var line in EnumerateDiff(oldLines, newLines))
+        {
+            buffer.Add(line);
+            if (line.Kind == DiffLineKind.Context)
+            {
+                trailingContext++;
+            }
+            else
+            {
+                trailingContext = 0;
+                hasChange = true;
+            }
+
+            // A run of more than 2*context unchanged lines can never sit inside a
+            // hunk, so it is a safe place to flush everything before it.
+            if (trailingContext == 2 * context + 1)
+            {
+                if (hasChange)
+                {
+                    // Keep `context` trailing lines with the flushed segment and
+                    // retain `context` lead-in lines for the next one.
+                    var segment = buffer.GetRange(0, buffer.Count - context - 1);
+                    foreach (var hunk in BuildHunks(segment, context))
+                        yield return hunk;
+                }
+
+                buffer = buffer.GetRange(buffer.Count - context, context);
+                trailingContext = context;
+                hasChange = false;
+            }
+        }
+
+        if (hasChange)
+            foreach (var hunk in BuildHunks(buffer, context))
+                yield return hunk;
+    }
+
+    // --- Anchored, region-based line diff -----------------------------------
+
+    private static DiffLine Context(string[] newLines, int oldIndex, int newIndex) =>
+        new(DiffLineKind.Context, oldIndex + 1, newIndex + 1, newLines[newIndex]);
+
+    private static DiffLine Removed(string[] oldLines, int oldIndex) =>
+        new(DiffLineKind.Removed, oldIndex + 1, null, oldLines[oldIndex]);
+
+    private static DiffLine Added(string[] newLines, int newIndex) =>
+        new(DiffLineKind.Added, null, newIndex + 1, newLines[newIndex]);
+
+    /// <summary>
+    /// Yields the full unified line diff in document order. The expensive Myers
+    /// pass is confined to small inter-anchor regions, so only what a consumer
+    /// pulls is computed.
+    /// </summary>
+    internal static IEnumerable<DiffLine> EnumerateDiff(string[] oldLines, string[] newLines) =>
+        DiffRange(oldLines, newLines, 0, oldLines.Length, 0, newLines.Length);
+
+    private static IEnumerable<DiffLine> DiffRange(
+        string[] o, string[] n, int oLo, int oHi, int nLo, int nHi)
+    {
+        // Trim the common prefix (cheap, emitted immediately).
+        while (oLo < oHi && nLo < nHi && o[oLo] == n[nLo])
+        {
+            yield return Context(n, oLo, nLo);
+            oLo++;
+            nLo++;
+        }
+
+        // Locate the common suffix; emit it only after the middle is processed.
+        int oHiSuffix = oHi, nHiSuffix = nHi;
+        while (oHiSuffix > oLo && nHiSuffix > nLo && o[oHiSuffix - 1] == n[nHiSuffix - 1])
+        {
+            oHiSuffix--;
+            nHiSuffix--;
+        }
+
+        foreach (var line in DiffMiddle(o, n, oLo, oHiSuffix, nLo, nHiSuffix))
+            yield return line;
+
+        for (var k = 0; oHiSuffix + k < oHi; k++)
+            yield return Context(n, oHiSuffix + k, nHiSuffix + k);
+    }
+
+    private static IEnumerable<DiffLine> DiffMiddle(
+        string[] o, string[] n, int oLo, int oHi, int nLo, int nHi)
+    {
+        var oLen = oHi - oLo;
+        var nLen = nHi - nLo;
+
+        if (oLen == 0 && nLen == 0)
+            yield break;
+
+        if (oLen == 0)
+        {
+            for (var j = nLo; j < nHi; j++)
+                yield return Added(n, j);
+            yield break;
+        }
+
+        if (nLen == 0)
+        {
+            for (var i = oLo; i < oHi; i++)
+                yield return Removed(o, i);
+            yield break;
+        }
+
+        var anchors = FindAnchors(o, n, oLo, oHi, nLo, nHi);
+        if (anchors.Count == 0)
+        {
+            foreach (var line in MyersBlock(o, n, oLo, oHi, nLo, nHi))
+                yield return line;
+            yield break;
+        }
+
+        // Diff each region between consecutive anchors independently; the anchor
+        // lines themselves are common context.
+        var oPos = oLo;
+        var nPos = nLo;
+        foreach (var (oi, nj) in anchors)
+        {
+            foreach (var line in DiffRange(o, n, oPos, oi, nPos, nj))
+                yield return line;
+            yield return Context(n, oi, nj);
+            oPos = oi + 1;
+            nPos = nj + 1;
+        }
+
+        foreach (var line in DiffRange(o, n, oPos, oHi, nPos, nHi))
+            yield return line;
+    }
+
+    /// <summary>Runs Myers on a single region and attaches word segments to it.</summary>
+    private static List<DiffLine> MyersBlock(
+        string[] o, string[] n, int oLo, int oHi, int nLo, int nHi)
+    {
+        var a = new ArraySegment<string>(o, oLo, oHi - oLo);
+        var b = new ArraySegment<string>(n, nLo, nHi - nLo);
+        var edits = Myers(a, b, StringComparer.Ordinal);
+
+        var block = new List<DiffLine>(edits.Count);
+        foreach (var edit in edits)
+        {
+            switch (edit.Op)
+            {
+                case Op.Equal:
+                    block.Add(Context(n, oLo + edit.OldIndex, nLo + edit.NewIndex));
+                    break;
+                case Op.Delete:
+                    block.Add(Removed(o, oLo + edit.OldIndex));
+                    break;
+                case Op.Insert:
+                    block.Add(Added(n, nLo + edit.NewIndex));
+                    break;
+            }
+        }
+
+        AssignWordSegments(block);
+        return block;
+    }
+
+    /// <summary>
+    /// Patience-style anchors: lines that occur exactly once on each side, reduced
+    /// to the longest subsequence that is increasing in both files.
+    /// </summary>
+    private static List<(int OldIndex, int NewIndex)> FindAnchors(
+        string[] o, string[] n, int oLo, int oHi, int nLo, int nHi)
+    {
+        var oldCount = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var i = oLo; i < oHi; i++)
+            oldCount[o[i]] = oldCount.TryGetValue(o[i], out var c) ? c + 1 : 1;
+
+        var newCount = new Dictionary<string, int>(StringComparer.Ordinal);
+        var newFirst = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var j = nLo; j < nHi; j++)
+        {
+            newCount[n[j]] = newCount.TryGetValue(n[j], out var c) ? c + 1 : 1;
+            if (!newFirst.ContainsKey(n[j]))
+                newFirst[n[j]] = j;
+        }
+
+        // Candidates are unique-in-both lines, naturally ascending by old index.
+        var candidates = new List<(int OldIndex, int NewIndex)>();
+        for (var i = oLo; i < oHi; i++)
+        {
+            var v = o[i];
+            if (oldCount[v] == 1 && newCount.TryGetValue(v, out var nc) && nc == 1)
+                candidates.Add((i, newFirst[v]));
+        }
+
+        if (candidates.Count <= 1)
+            return candidates;
+
+        return LongestIncreasingByNewIndex(candidates);
+    }
+
+    /// <summary>Longest subsequence strictly increasing in new index (O(k log k)).</summary>
+    private static List<(int OldIndex, int NewIndex)> LongestIncreasingByNewIndex(
+        List<(int OldIndex, int NewIndex)> candidates)
+    {
+        var k = candidates.Count;
+        var prev = new int[k];
+        var pileTopIndex = new List<int>();   // candidate index at each pile's top
+        var pileTopValue = new List<int>();   // new index at each pile's top (increasing)
+
+        for (var i = 0; i < k; i++)
+        {
+            var nj = candidates[i].NewIndex;
+
+            int lo = 0, hi = pileTopValue.Count;
+            while (lo < hi)
+            {
+                var mid = (lo + hi) / 2;
+                if (pileTopValue[mid] < nj) lo = mid + 1;
+                else hi = mid;
+            }
+
+            prev[i] = lo > 0 ? pileTopIndex[lo - 1] : -1;
+
+            if (lo == pileTopValue.Count)
+            {
+                pileTopValue.Add(nj);
+                pileTopIndex.Add(i);
+            }
+            else
+            {
+                pileTopValue[lo] = nj;
+                pileTopIndex[lo] = i;
+            }
+        }
+
+        var result = new List<(int, int)>();
+        for (var cur = pileTopIndex[^1]; cur != -1; cur = prev[cur])
+            result.Add(candidates[cur]);
+        result.Reverse();
+        return result;
     }
 
     // --- Line splitting -----------------------------------------------------
