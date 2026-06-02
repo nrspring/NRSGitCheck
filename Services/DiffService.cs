@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using NRSGitCheck.Models;
 
 namespace NRSGitCheck.Services;
@@ -22,30 +21,33 @@ public sealed class DiffService : IDiffService
         _highlighter = highlighter;
     }
 
+    /// <summary>
+    /// Eager convenience over <see cref="BuildDiffStream"/>: drains the lazy hunk
+    /// stream into a fully-materialized <see cref="DiffDocument"/> for callers that
+    /// want the whole diff in one object rather than progressively.
+    /// </summary>
     public DiffDocument BuildDiff(string baseCommitSha, FileChange change, int contextLines = 3, bool wholeFile = false)
     {
-        if (change.IsBinary)
+        var stream = BuildDiffStream(baseCommitSha, change, contextLines, wholeFile);
+        if (stream.IsBinary)
             return DiffDocument.Binary();
-
-        var content = _git.GetFileContent(baseCommitSha, change);
-        if (content.IsBinary)
-            return DiffDocument.Binary();
-
-        if (CountLines(content.OldText) > MaxDiffLines || CountLines(content.NewText) > MaxDiffLines)
+        if (stream.IsTooLarge)
             return DiffDocument.TooLarge();
 
-        // The line diff (pure CPU) and syntax tokenization (CPU, but serialized
-        // inside the highlighter) are independent. Run the diff on a worker thread
-        // so it overlaps with the two highlight passes this thread drives, instead
-        // of the three running back-to-back (NFR-1).
-        var computeTask = Task.Run(() => DiffEngine.Compute(content.OldText, content.NewText, contextLines, wholeFile));
+        var hunks = new List<DiffHunk>();
+        var added = 0;
+        var removed = 0;
+        foreach (var hunk in stream.Hunks)
+        {
+            hunks.Add(hunk);
+            foreach (var line in hunk.Lines)
+            {
+                if (line.Kind == DiffLineKind.Added) added++;
+                else if (line.Kind == DiffLineKind.Removed) removed++;
+            }
+        }
 
-        var oldColors = _highlighter.Highlight(change.Path, content.OldText);
-        var newColors = _highlighter.Highlight(change.Path, content.NewText);
-
-        var doc = computeTask.GetAwaiter().GetResult();
-        ApplyHighlighting(doc, oldColors, newColors);
-        return doc;
+        return new DiffDocument { Hunks = hunks, LinesAdded = added, LinesRemoved = removed };
     }
 
     public DiffStream BuildDiffStream(string baseCommitSha, FileChange change, int contextLines = 3, bool wholeFile = false)
@@ -95,35 +97,6 @@ public sealed class DiffService : IDiffService
             }
 
             yield return hunk;
-        }
-    }
-
-    /// <summary>
-    /// Attaches the precomputed per-line foreground spans to each diff line,
-    /// choosing the old or new tokenization by the line's role (FR-20).
-    /// </summary>
-    private static void ApplyHighlighting(
-        DiffDocument doc,
-        IReadOnlyList<IReadOnlyList<ColorSpan>>? oldColors,
-        IReadOnlyList<IReadOnlyList<ColorSpan>>? newColors)
-    {
-        if (oldColors is null && newColors is null)
-            return;
-
-        foreach (var hunk in doc.Hunks)
-        {
-            foreach (var line in hunk.Lines)
-            {
-                if (line.Kind == DiffLineKind.Removed)
-                {
-                    if (oldColors is not null && line.OldLineNumber is { } o && o - 1 < oldColors.Count)
-                        line.Foreground = oldColors[o - 1];
-                }
-                else if (newColors is not null && line.NewLineNumber is { } n && n - 1 < newColors.Count)
-                {
-                    line.Foreground = newColors[n - 1];
-                }
-            }
         }
     }
 

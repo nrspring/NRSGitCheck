@@ -40,18 +40,18 @@ public partial class DiffView : UserControl
             _vm.ScrollToRequested += OnScrollToRequested;
     }
 
-    private void OnLeftScrolled(object? sender, ScrollChangedEventArgs e)
-    {
-        _leftScroll ??= FindScrollViewer("SideLeftList");
-        _rightScroll ??= FindScrollViewer("SideRightList");
-        SyncOffset(_leftScroll, _rightScroll);
-    }
+    private void OnLeftScrolled(object? sender, ScrollChangedEventArgs e) => SyncPanes(leftIsSource: true);
 
-    private void OnRightScrolled(object? sender, ScrollChangedEventArgs e)
+    private void OnRightScrolled(object? sender, ScrollChangedEventArgs e) => SyncPanes(leftIsSource: false);
+
+    private void SyncPanes(bool leftIsSource)
     {
         _leftScroll ??= FindScrollViewer("SideLeftList");
         _rightScroll ??= FindScrollViewer("SideRightList");
-        SyncOffset(_rightScroll, _leftScroll);
+        if (leftIsSource)
+            SyncOffset(_leftScroll, _rightScroll);
+        else
+            SyncOffset(_rightScroll, _leftScroll);
     }
 
     // Mirror the source pane's scroll offset (both axes) onto the target. The

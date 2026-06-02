@@ -222,14 +222,15 @@ public partial class DiffViewModel : ViewModelBase
         try
         {
             var any = false;
-            var sinceYield = 0;
             while (true)
             {
-                // The expensive per-hunk diff + row build happen off the UI thread.
-                var built = await Task.Run(() => AdvanceAndBuild(enumerator));
+                // Diff and build a batch of hunks off the UI thread. Awaiting the
+                // Task.Run is itself the yield that lets layout/render run between
+                // batches, so the top appears while later hunks are still computing.
+                var batch = await Task.Run(() => AdvanceBatch(enumerator));
                 if (gen != _loadGeneration)
                     return;
-                if (built is null)
+                if (batch.Count == 0)
                     break;
 
                 if (!any)
@@ -239,26 +240,19 @@ public partial class DiffViewModel : ViewModelBase
                     RaiseShowState();
                 }
 
-                foreach (var row in built.InlineRows) InlineRows.Add(row);
-                foreach (var row in built.SideRows) SideRows.Add(row);
-                _inlineAnchors.Add(built.InlineAnchor);
-                _sideAnchors.Add(built.SideAnchor);
+                foreach (var built in batch)
+                {
+                    foreach (var row in built.InlineRows) InlineRows.Add(row);
+                    foreach (var row in built.SideRows) SideRows.Add(row);
+                    _inlineAnchors.Add(built.InlineAnchor);
+                    _sideAnchors.Add(built.SideAnchor);
+                }
 
                 // Land on the first hunk the moment it appears.
                 if (_currentHunkIndex < 0 && position == HunkPosition.First)
                 {
                     _currentHunkIndex = 0;
                     ScrollToRequested?.Invoke(ActiveAnchors[0]);
-                }
-
-                // Periodically yield so layout/render can run between hunks.
-                sinceYield += built.InlineRows.Count;
-                if (sinceYield >= 400)
-                {
-                    sinceYield = 0;
-                    await Task.Yield();
-                    if (gen != _loadGeneration)
-                        return;
                 }
             }
 
@@ -281,15 +275,23 @@ public partial class DiffViewModel : ViewModelBase
         }
     }
 
-    private static BuiltHunk? AdvanceAndBuild(IEnumerator<DiffHunk> hunks)
-    {
-        if (!hunks.MoveNext())
-            return null;
+    /// <summary>Approximate row count per streamed batch — small enough to keep the
+    /// first paint snappy, large enough to amortize the worker-thread hop.</summary>
+    private const int StreamBatchRows = 400;
 
-        var hunk = hunks.Current;
-        var (inlineRows, inlineAnchor) = BuildInlineHunk(hunk);
-        var (sideRows, sideAnchor) = BuildSideHunk(hunk);
-        return new BuiltHunk(inlineRows, inlineAnchor, sideRows, sideAnchor);
+    private static List<BuiltHunk> AdvanceBatch(IEnumerator<DiffHunk> hunks)
+    {
+        var batch = new List<BuiltHunk>();
+        var rows = 0;
+        while (rows < StreamBatchRows && hunks.MoveNext())
+        {
+            var hunk = hunks.Current;
+            var (inlineRows, inlineAnchor) = BuildInlineHunk(hunk);
+            var (sideRows, sideAnchor) = BuildSideHunk(hunk);
+            batch.Add(new BuiltHunk(inlineRows, inlineAnchor, sideRows, sideAnchor));
+            rows += inlineRows.Count;
+        }
+        return batch;
     }
 
     private void RaiseShowState()

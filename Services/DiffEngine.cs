@@ -429,24 +429,11 @@ public static class DiffEngine
     /// </summary>
     private static List<DiffHunk> BuildWholeFileHunks(List<DiffLine> lines)
     {
-        var hunks = new List<DiffHunk>();
-        if (lines.Count == 0)
-            return hunks;
-
-        var hasChange = false;
         foreach (var line in lines)
-        {
             if (line.Kind != DiffLineKind.Context)
-            {
-                hasChange = true;
-                break;
-            }
-        }
+                return new List<DiffHunk> { BuildHunk(lines, 0, lines.Count - 1) };
 
-        if (hasChange)
-            hunks.Add(BuildHunk(lines, 0, lines.Count - 1));
-
-        return hunks;
+        return new List<DiffHunk>();
     }
 
     private static List<DiffHunk> BuildHunks(List<DiffLine> lines, int context)
