@@ -86,6 +86,6 @@ public sealed class SyntaxHighlighterTests
     {
         private readonly DiffDocument _doc;
         public ConstDiff(DiffDocument doc) => _doc = doc;
-        public DiffDocument BuildDiff(string baseCommitSha, FileChange change, int contextLines = 3) => _doc;
+        public DiffDocument BuildDiff(string baseCommitSha, FileChange change, int contextLines = 3, bool wholeFile = false) => _doc;
     }
 }

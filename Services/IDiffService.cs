@@ -8,5 +8,9 @@ namespace NRSGitCheck.Services;
 /// </summary>
 public interface IDiffService
 {
-    DiffDocument BuildDiff(string baseCommitSha, FileChange change, int contextLines = 3);
+    /// <param name="wholeFile">
+    /// When true, render the entire file on both sides instead of just changed
+    /// regions with surrounding context, keeping the diff highlighting intact.
+    /// </param>
+    DiffDocument BuildDiff(string baseCommitSha, FileChange change, int contextLines = 3, bool wholeFile = false);
 }

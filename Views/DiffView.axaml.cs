@@ -44,29 +44,29 @@ public partial class DiffView : UserControl
     {
         _leftScroll ??= FindScrollViewer("SideLeftList");
         _rightScroll ??= FindScrollViewer("SideRightList");
-        SyncVertical(_leftScroll, _rightScroll);
+        SyncOffset(_leftScroll, _rightScroll);
     }
 
     private void OnRightScrolled(object? sender, ScrollChangedEventArgs e)
     {
         _leftScroll ??= FindScrollViewer("SideLeftList");
         _rightScroll ??= FindScrollViewer("SideRightList");
-        SyncVertical(_rightScroll, _leftScroll);
+        SyncOffset(_rightScroll, _leftScroll);
     }
 
-    // Mirror the source pane's vertical offset onto the target, leaving the
-    // target's independent horizontal offset untouched. The guard prevents the
-    // resulting ScrollChanged from bouncing back into an infinite loop.
-    private void SyncVertical(ScrollViewer? from, ScrollViewer? to)
+    // Mirror the source pane's scroll offset (both axes) onto the target. The
+    // guard prevents the resulting ScrollChanged from bouncing back into an
+    // infinite loop.
+    private void SyncOffset(ScrollViewer? from, ScrollViewer? to)
     {
         if (_syncing || from is null || to is null)
             return;
 
-        if (to.Offset.Y == from.Offset.Y)
+        if (to.Offset == from.Offset)
             return;
 
         _syncing = true;
-        to.Offset = new Vector(to.Offset.X, from.Offset.Y);
+        to.Offset = from.Offset;
         _syncing = false;
     }
 

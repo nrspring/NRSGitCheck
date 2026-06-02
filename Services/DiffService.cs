@@ -22,7 +22,7 @@ public sealed class DiffService : IDiffService
         _highlighter = highlighter;
     }
 
-    public DiffDocument BuildDiff(string baseCommitSha, FileChange change, int contextLines = 3)
+    public DiffDocument BuildDiff(string baseCommitSha, FileChange change, int contextLines = 3, bool wholeFile = false)
     {
         if (change.IsBinary)
             return DiffDocument.Binary();
@@ -38,7 +38,7 @@ public sealed class DiffService : IDiffService
         // inside the highlighter) are independent. Run the diff on a worker thread
         // so it overlaps with the two highlight passes this thread drives, instead
         // of the three running back-to-back (NFR-1).
-        var computeTask = Task.Run(() => DiffEngine.Compute(content.OldText, content.NewText, contextLines));
+        var computeTask = Task.Run(() => DiffEngine.Compute(content.OldText, content.NewText, contextLines, wholeFile));
 
         var oldColors = _highlighter.Highlight(change.Path, content.OldText);
         var newColors = _highlighter.Highlight(change.Path, content.NewText);

@@ -24,6 +24,7 @@ public partial class DiffViewModel : ViewModelBase
         _diff = diff;
         _settings = settings;
         _layout = settings.Settings.LastDiffLayout;
+        _showWholeFile = settings.Settings.ShowWholeFileDiff;
     }
 
     public ObservableCollection<object> InlineRows { get; } = new();
@@ -41,6 +42,14 @@ public partial class DiffViewModel : ViewModelBase
 
     [ObservableProperty]
     private DiffLayout _layout;
+
+    /// <summary>When true, the entire file is shown on both sides rather than just
+    /// the changed hunks, with diff highlighting intact. Persisted across launches.</summary>
+    [ObservableProperty]
+    private bool _showWholeFile;
+
+    /// <summary>Label for the whole-file toggle, describing the action it performs.</summary>
+    public string WholeFileToggleLabel => ShowWholeFile ? "Show partial" : "Show full file";
 
     [ObservableProperty]
     private string? _fileName;
@@ -87,6 +96,17 @@ public partial class DiffViewModel : ViewModelBase
     private void ToggleLayout() =>
         Layout = Layout == DiffLayout.SideBySide ? DiffLayout.Inline : DiffLayout.SideBySide;
 
+    partial void OnShowWholeFileChanged(bool value)
+    {
+        OnPropertyChanged(nameof(WholeFileToggleLabel));
+        _settings.Settings.ShowWholeFileDiff = value;
+        _settings.Save();
+
+        // Rebuild the currently displayed file under the new windowing mode.
+        if (_lastBaseSha is { } sha && _lastChange is { } change)
+            _ = LoadAsync(sha, change);
+    }
+
     /// <summary>Moves to the next hunk; returns false if already at the last one (FR-24, FR-27).</summary>
     public bool GoToNextHunk()
     {
@@ -120,6 +140,8 @@ public partial class DiffViewModel : ViewModelBase
         _inlineAnchors.Clear();
         _sideAnchors.Clear();
         _currentHunkIndex = -1;
+        _lastBaseSha = null;
+        _lastChange = null;
         HasContent = false;
         IsBinary = false;
         IsTooLarge = false;
@@ -130,11 +152,18 @@ public partial class DiffViewModel : ViewModelBase
         RaiseShowState();
     }
 
+    // The last successfully requested load, so a full-file toggle can rebuild it.
+    private string? _lastBaseSha;
+    private FileChange? _lastChange;
+
     public async Task LoadAsync(string baseSha, FileChange change, HunkPosition position = HunkPosition.First)
     {
+        _lastBaseSha = baseSha;
+        _lastChange = change;
         FileName = System.IO.Path.GetFileName(change.Path);
         FilePath = change.Path;
-        var doc = await Task.Run(() => _diff.BuildDiff(baseSha, change));
+        var wholeFile = ShowWholeFile;
+        var doc = await Task.Run(() => _diff.BuildDiff(baseSha, change, wholeFile: wholeFile));
         Apply(doc, position);
     }
 

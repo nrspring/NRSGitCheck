@@ -103,6 +103,35 @@ public sealed class DiffEngineTests
     }
 
     [Fact]
+    public void Whole_file_mode_emits_one_hunk_covering_every_line()
+    {
+        // Two changes far apart that would normally split into separate hunks.
+        var oldLines = Enumerable.Range(1, 40).Select(i => $"line{i}");
+        var newLines = Enumerable.Range(1, 40).Select(i =>
+            i == 5 ? "line5-changed" : i == 35 ? "line35-changed" : $"line{i}");
+
+        var doc = DiffEngine.Compute(
+            string.Join("\n", oldLines) + "\n",
+            string.Join("\n", newLines) + "\n",
+            contextLines: 3,
+            wholeFile: true);
+
+        Assert.Single(doc.Hunks);
+        // The single hunk spans the full file: 40 context/changed + 2 added rows.
+        Assert.Equal(42, AllLines(doc).Length);
+        Assert.Equal(2, doc.LinesAdded);
+        Assert.Equal(2, doc.LinesRemoved);
+    }
+
+    [Fact]
+    public void Whole_file_mode_with_no_changes_has_no_hunks()
+    {
+        var doc = DiffEngine.Compute("a\nb\nc\n", "a\nb\nc\n", wholeFile: true);
+
+        Assert.False(doc.HasChanges);
+    }
+
+    [Fact]
     public void Separate_changes_far_apart_make_separate_hunks()
     {
         var oldLines = Enumerable.Range(1, 40).Select(i => $"line{i}");

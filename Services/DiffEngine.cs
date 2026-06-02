@@ -21,7 +21,7 @@ public static class DiffEngine
 
     private readonly record struct Edit(Op Op, int OldIndex, int NewIndex);
 
-    public static DiffDocument Compute(string oldText, string newText, int contextLines = DefaultContextLines)
+    public static DiffDocument Compute(string oldText, string newText, int contextLines = DefaultContextLines, bool wholeFile = false)
     {
         var oldLines = SplitLines(oldText);
         var newLines = SplitLines(newText);
@@ -52,7 +52,7 @@ public static class DiffEngine
 
         AssignWordSegments(lines);
 
-        var hunks = BuildHunks(lines, contextLines);
+        var hunks = wholeFile ? BuildWholeFileHunks(lines) : BuildHunks(lines, contextLines);
 
         return new DiffDocument
         {
@@ -170,6 +170,33 @@ public static class DiffEngine
     }
 
     // --- Hunk grouping ------------------------------------------------------
+
+    /// <summary>
+    /// Emits the entire file as a single hunk so both sides render in full with the
+    /// diff highlighting intact. Returns no hunks when nothing changed, keeping the
+    /// "no differences" path consistent with the windowed mode.
+    /// </summary>
+    private static List<DiffHunk> BuildWholeFileHunks(List<DiffLine> lines)
+    {
+        var hunks = new List<DiffHunk>();
+        if (lines.Count == 0)
+            return hunks;
+
+        var hasChange = false;
+        foreach (var line in lines)
+        {
+            if (line.Kind != DiffLineKind.Context)
+            {
+                hasChange = true;
+                break;
+            }
+        }
+
+        if (hasChange)
+            hunks.Add(BuildHunk(lines, 0, lines.Count - 1));
+
+        return hunks;
+    }
 
     private static List<DiffHunk> BuildHunks(List<DiffLine> lines, int context)
     {

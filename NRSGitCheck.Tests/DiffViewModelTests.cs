@@ -29,7 +29,7 @@ public sealed class DiffViewModelTests
     {
         private readonly DiffDocument _doc;
         public StubDiff(DiffDocument doc) => _doc = doc;
-        public DiffDocument BuildDiff(string baseCommitSha, FileChange change, int contextLines = 3) => _doc;
+        public DiffDocument BuildDiff(string baseCommitSha, FileChange change, int contextLines = 3, bool wholeFile = false) => _doc;
     }
 
     private static FileChange Change() => new("file.txt", null, ChangeKind.Modified, 0, 0, false);

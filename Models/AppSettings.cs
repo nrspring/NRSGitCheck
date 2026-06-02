@@ -20,6 +20,9 @@ public sealed class AppSettings
     /// <summary>The diff layout last used, restored on next launch.</summary>
     public DiffLayout LastDiffLayout { get; set; } = DiffLayout.SideBySide;
 
+    /// <summary>Whether to render the whole file rather than just changed regions.</summary>
+    public bool ShowWholeFileDiff { get; set; }
+
     /// <summary>Recently opened repositories, most-recent first (FR-3, FR-4).</summary>
     public List<RecentRepository> RecentRepositories { get; set; } = new();
 }
