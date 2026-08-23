@@ -5,15 +5,21 @@ to compare against, and browse the diff with syntax highlighting, word-level cha
 emphasis, side-by-side or inline layouts, and progressive rendering that stays smooth
 even on very large files.
 
-NRSGitCheck never writes to your repository — it only reads, so it's safe to point at
-any working tree.
+NRSGitCheck reads your repository and never modifies your work. The single exception
+is the **Pull main** button, which fetches and fast-forwards your main branch on
+demand; it is fast-forward only and leaves your working tree untouched unless main
+itself is checked out.
 
 ![Side-by-side diff with syntax and word-level highlighting](docs/screenshots/side-by-side.png)
 
 ## Features
 
-- **Compare against anything** — your last commit (`HEAD`), another local branch, or the
+- **Compare against anything** — uncommitted changes, any commit back to the start of
+  your branch, everything on the branch versus `main`, another local branch, or the
   merge-base with a parent branch.
+- **Commit picker** — a dropdown of the commits on your branch (newest first, back to
+  the branch point) so you can widen the diff one commit at a time.
+- **Pull main** — fetch and fast-forward `main` without leaving your feature branch.
 - **Side-by-side and inline diffs** — toggle layouts instantly. Side-by-side panes are
   equal-width, each with their own horizontal scrollbar, and scroll in sync.
 - **Syntax highlighting** for the diffed file (TextMate grammars), layered with
@@ -25,7 +31,9 @@ any working tree.
   visible while the rest is still being computed (see [How it works](#how-it-works)).
 - **Auto-refresh** — optionally poll the repository on an interval and update the change
   list when something new appears, without disturbing your current view.
-- **Keyboard-driven** navigation between files and hunks, plus a help overlay.
+- **Keyboard-driven** navigation: `N`/`P` step through every changed section in the
+  file and then carry on into the next/previous file, without wrapping around at
+  either end. Plus a help overlay.
 - **Light / dark / system** theming, and it reopens your last repository on launch.
 
 ## Screenshots
@@ -74,19 +82,26 @@ dotnet test
 1. **Open a repository** with the *Repo* button (or `Ctrl+O`). Recently opened repos are
    remembered and shown as quick-pick pills.
 2. Choose a **comparison target** from the *Compare against* dropdown:
-   - **Last commit (HEAD)** — your uncommitted working-tree changes.
+   - **Uncommitted changes** — your working-tree changes since `HEAD`.
+   - **Since commit…** — pick any commit on the branch; shows everything that changed
+     after it, including work you haven't committed. Defaults to the branch point.
+   - **All changes vs main** — everything on this branch, committed or not, measured
+     from where it diverged from `main` (or `master`, or `origin/main`).
    - **Another branch** — diff against the tip of a chosen local branch.
    - **Branch base (merge-base)** — diff against where your branch diverged from a parent.
 3. Pick a file in the tree to see its diff. Use the header buttons to switch between
    **inline / side-by-side** and to toggle **whole file** vs. changed regions.
 4. Tick **Auto** to have the change list refresh itself periodically.
+5. Press **Pull *main*** to fetch and fast-forward your main branch. When main isn't
+   checked out this only moves the branch ref, so your working tree is untouched; if
+   main has diverged the pull is refused rather than merged or rebased.
 
 ### Keyboard shortcuts
 
 | Action | Keys |
 | --- | --- |
-| Next change / hunk | `J` · `Alt+↓` |
-| Previous change / hunk | `K` · `Alt+↑` |
+| Next changed section | `N` · `J` · `Alt+↓` |
+| Previous changed section | `P` · `K` · `Alt+↑` |
 | Next file | `Ctrl+↓` · `]` |
 | Previous file | `Ctrl+↑` · `[` |
 | Toggle diff layout | `Ctrl+L` |
@@ -111,6 +126,8 @@ syntax colors are applied per hunk as it arrives.
 - [.NET 10](https://dotnet.microsoft.com/) / C#
 - [Avalonia](https://avaloniaui.net/) — cross-platform UI
 - [LibGit2Sharp](https://github.com/libgit2/libgit2sharp) — read-only Git access
+- The `git` CLI — used only for **Pull main**, so your existing credential helper
+  handles authentication and the app never touches your secrets
 - [TextMateSharp](https://github.com/danipen/TextMateSharp) — syntax highlighting
 - [CommunityToolkit.Mvvm](https://learn.microsoft.com/dotnet/communitytoolkit/mvvm/) — MVVM
 - xUnit for tests

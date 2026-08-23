@@ -37,6 +37,20 @@ public partial class DiffViewModel : ViewModelBase
 
     private List<object> ActiveAnchors => IsInline ? _inlineAnchors : _sideAnchors;
 
+    /// <summary>How many changed sections the current layout has rendered so far.</summary>
+    public int SectionCount => ActiveAnchors.Count;
+
+    /// <summary>Index of the section the view is parked on, or -1 before the first one lands.</summary>
+    public int CurrentSectionIndex => _currentHunkIndex;
+
+    /// <summary>
+    /// True from the moment a file is selected until its sections have finished
+    /// streaming. While set, the section list is incomplete and must not be used to
+    /// decide that a file has been exhausted.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isLoading;
+
     /// <summary>Raised to ask the view to scroll a row into view.</summary>
     public event Action<object>? ScrollToRequested;
 
@@ -107,8 +121,8 @@ public partial class DiffViewModel : ViewModelBase
             _ = LoadAsync(sha, change);
     }
 
-    /// <summary>Moves to the next hunk; returns false if already at the last one (FR-24, FR-27).</summary>
-    public bool GoToNextHunk()
+    /// <summary>Moves to the next changed section; false if already at the last one (FR-24, FR-27).</summary>
+    public bool GoToNextSection()
     {
         var anchors = ActiveAnchors;
         if (_currentHunkIndex < anchors.Count - 1)
@@ -120,8 +134,8 @@ public partial class DiffViewModel : ViewModelBase
         return false;
     }
 
-    /// <summary>Moves to the previous hunk; returns false if already at the first one.</summary>
-    public bool GoToPreviousHunk()
+    /// <summary>Moves to the previous changed section; false if already at the first one.</summary>
+    public bool GoToPreviousSection()
     {
         var anchors = ActiveAnchors;
         if (_currentHunkIndex > 0)
@@ -141,6 +155,7 @@ public partial class DiffViewModel : ViewModelBase
         _inlineAnchors.Clear();
         _sideAnchors.Clear();
         _currentHunkIndex = -1;
+        IsLoading = false;
         _lastBaseSha = null;
         _lastChange = null;
         HasContent = false;
@@ -161,10 +176,14 @@ public partial class DiffViewModel : ViewModelBase
     // population detect that a newer request has superseded it and bail out.
     private int _loadGeneration;
 
-    /// <summary>One hunk's rows for both layouts, built off the UI thread.</summary>
+    /// <summary>
+    /// One hunk's rows for both layouts, built off the UI thread. A hunk can contain
+    /// several separate changed sections, so each side carries a list of anchors --
+    /// one per section, in document order, and the same count on both sides.
+    /// </summary>
     private sealed record BuiltHunk(
-        List<object> InlineRows, object InlineAnchor,
-        List<object> SideRows, object SideAnchor);
+        List<object> InlineRows, List<object> InlineAnchors,
+        List<object> SideRows, List<object> SideAnchors);
 
     public async Task LoadAsync(string baseSha, FileChange change, HunkPosition position = HunkPosition.First)
     {
@@ -175,14 +194,32 @@ public partial class DiffViewModel : ViewModelBase
         FilePath = change.Path;
         var wholeFile = ShowWholeFile;
 
-        // Fetch content and resolve syntax highlighting off the UI thread; this
-        // also sets up the lazy hunk sequence (no diffing happens yet).
-        var stream = await Task.Run(() => _diff.BuildDiffStream(baseSha, change, wholeFile: wholeFile));
+        // Drop the outgoing file's navigation state here, synchronously, before the
+        // first await. Callers fire this off without awaiting it, so anything left
+        // behind would describe the previous file for the whole load and let a
+        // keypress wrongly conclude this file has no more hunks.
+        _inlineAnchors.Clear();
+        _sideAnchors.Clear();
+        _currentHunkIndex = -1;
+        IsLoading = true;
 
-        if (gen != _loadGeneration)
-            return; // a newer load superseded this one
+        try
+        {
+            // Fetch content and resolve syntax highlighting off the UI thread; this
+            // also sets up the lazy hunk sequence (no diffing happens yet).
+            var stream = await Task.Run(() => _diff.BuildDiffStream(baseSha, change, wholeFile: wholeFile));
 
-        await ApplyStreamAsync(stream, position, gen);
+            if (gen != _loadGeneration)
+                return; // a newer load superseded this one
+
+            await ApplyStreamAsync(stream, position, gen);
+        }
+        finally
+        {
+            // Only the newest load owns the flag; a superseded one must not clear it.
+            if (gen == _loadGeneration)
+                IsLoading = false;
+        }
     }
 
     /// <summary>
@@ -244,8 +281,8 @@ public partial class DiffViewModel : ViewModelBase
                 {
                     foreach (var row in built.InlineRows) InlineRows.Add(row);
                     foreach (var row in built.SideRows) SideRows.Add(row);
-                    _inlineAnchors.Add(built.InlineAnchor);
-                    _sideAnchors.Add(built.SideAnchor);
+                    _inlineAnchors.AddRange(built.InlineAnchors);
+                    _sideAnchors.AddRange(built.SideAnchors);
                 }
 
                 // Land on the first hunk the moment it appears.
@@ -286,9 +323,9 @@ public partial class DiffViewModel : ViewModelBase
         while (rows < StreamBatchRows && hunks.MoveNext())
         {
             var hunk = hunks.Current;
-            var (inlineRows, inlineAnchor) = BuildInlineHunk(hunk);
-            var (sideRows, sideAnchor) = BuildSideHunk(hunk);
-            batch.Add(new BuiltHunk(inlineRows, inlineAnchor, sideRows, sideAnchor));
+            var (inlineRows, inlineAnchors) = BuildInlineHunk(hunk);
+            var (sideRows, sideAnchors) = BuildSideHunk(hunk);
+            batch.Add(new BuiltHunk(inlineRows, inlineAnchors, sideRows, sideAnchors));
             rows += inlineRows.Count;
         }
         return batch;
@@ -302,14 +339,24 @@ public partial class DiffViewModel : ViewModelBase
 
     // --- Row building -------------------------------------------------------
 
-    private static (List<object> Rows, object Anchor) BuildInlineHunk(DiffHunk hunk)
+    /// <summary>
+    /// True when the line at <paramref name="i"/> opens a changed section: it is a
+    /// change, and what precedes it inside the hunk is unchanged context.
+    /// </summary>
+    private static bool StartsSection(IReadOnlyList<DiffLine> lines, int i) =>
+        lines[i].Kind != DiffLineKind.Context &&
+        (i == 0 || lines[i - 1].Kind == DiffLineKind.Context);
+
+    private static (List<object> Rows, List<object> Anchors) BuildInlineHunk(DiffHunk hunk)
     {
         var rows = new List<object>(hunk.Lines.Count + 1);
-        var separator = new HunkSeparatorRow { Header = hunk.Header };
-        rows.Add(separator);
-        foreach (var line in hunk.Lines)
+        var anchors = new List<object>();
+        rows.Add(new HunkSeparatorRow { Header = hunk.Header });
+
+        for (var i = 0; i < hunk.Lines.Count; i++)
         {
-            rows.Add(new InlineDiffRow
+            var line = hunk.Lines[i];
+            var row = new InlineDiffRow
             {
                 OldNumber = line.OldLineNumber?.ToString() ?? string.Empty,
                 NewNumber = line.NewLineNumber?.ToString() ?? string.Empty,
@@ -321,16 +368,23 @@ public partial class DiffViewModel : ViewModelBase
                 },
                 Kind = line.Kind,
                 Segments = ToSegments(line),
-            });
+            };
+            rows.Add(row);
+
+            // Anchor the change itself, not the hunk header: in whole-file mode the
+            // header sits at the top of the file, nowhere near the edit.
+            if (StartsSection(hunk.Lines, i))
+                anchors.Add(row);
         }
-        return (rows, separator);
+
+        return (rows, anchors);
     }
 
-    private static (List<object> Rows, object Anchor) BuildSideHunk(DiffHunk hunk)
+    private static (List<object> Rows, List<object> Anchors) BuildSideHunk(DiffHunk hunk)
     {
         var rows = new List<object>(hunk.Lines.Count + 1);
-        var separator = new HunkSeparatorRow { Header = hunk.Header };
-        rows.Add(separator);
+        var anchors = new List<object>();
+        rows.Add(new HunkSeparatorRow { Header = hunk.Header });
 
         var lines = hunk.Lines;
         var i = 0;
@@ -359,14 +413,23 @@ public partial class DiffViewModel : ViewModelBase
             var aCount = aEnd - aStart;
             var max = Math.Max(rCount, aCount);
 
+            // A removed run and the added run that replaces it are one section. Two
+            // such pairs back to back with no context between them are still one
+            // contiguous changed area, so only the first gets an anchor.
+            var opensSection = StartsSection(lines, rStart);
+
             for (var k = 0; k < max; k++)
             {
                 var left = k < rCount ? Cell(lines[rStart + k], lines[rStart + k].OldLineNumber) : SideCell.Empty;
                 var right = k < aCount ? Cell(lines[aStart + k], lines[aStart + k].NewLineNumber) : SideCell.Empty;
-                rows.Add(new SideDiffRow { Left = left, Right = right });
+                var row = new SideDiffRow { Left = left, Right = right };
+                rows.Add(row);
+
+                if (opensSection && k == 0)
+                    anchors.Add(row);
             }
         }
-        return (rows, separator);
+        return (rows, anchors);
     }
 
     private static SideCell Cell(DiffLine line, int? number) => new()

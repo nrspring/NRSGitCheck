@@ -18,4 +18,6 @@ public sealed record RepositorySnapshot(
     bool IsHeadUnborn,
     string HeadShortSha,
     IReadOnlyList<BranchInfo> LocalBranches,
-    string? DefaultParentBranch);
+    string? DefaultParentBranch,
+    string? MainBranch,
+    bool HasRemote);

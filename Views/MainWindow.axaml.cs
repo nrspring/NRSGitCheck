@@ -99,8 +99,8 @@ public partial class MainWindow : Window
         if (ctrl && e.Key == Key.T) { vm.ToggleTheme(); e.Handled = true; return; }
         if (ctrl && e.Key == Key.F) { vm.RequestFocusFilter(); e.Handled = true; return; }
         if (e.Key == Key.F1) { vm.ToggleHelp(); e.Handled = true; return; }
-        if (alt && e.Key == Key.Down) { vm.NextHunk(); e.Handled = true; return; }
-        if (alt && e.Key == Key.Up) { vm.PreviousHunk(); e.Handled = true; return; }
+        if (alt && e.Key == Key.Down) { vm.NextChange(); e.Handled = true; return; }
+        if (alt && e.Key == Key.Up) { vm.PreviousChange(); e.Handled = true; return; }
         if (ctrl && e.Key == Key.Down) { vm.NextFile(); e.Handled = true; return; }
         if (ctrl && e.Key == Key.Up) { vm.PreviousFile(); e.Handled = true; return; }
 
@@ -110,8 +110,8 @@ public partial class MainWindow : Window
 
         switch (e.Key)
         {
-            case Key.J: vm.NextHunk(); e.Handled = true; break;
-            case Key.K: vm.PreviousHunk(); e.Handled = true; break;
+            case Key.J or Key.N: vm.NextChange(); e.Handled = true; break;
+            case Key.K or Key.P: vm.PreviousChange(); e.Handled = true; break;
             case Key.OemCloseBrackets: vm.NextFile(); e.Handled = true; break;   // ]
             case Key.OemOpenBrackets: vm.PreviousFile(); e.Handled = true; break; // [
             case Key.OemQuestion when shift: vm.ToggleHelp(); e.Handled = true; break; // ?

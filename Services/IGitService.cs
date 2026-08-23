@@ -21,7 +21,18 @@ public interface IGitService
     /// currently open repository (FR-7..9). Does not throw for ordinary "can't
     /// resolve" cases — those come back as an unresolved <see cref="ResolvedComparison"/>.
     /// </summary>
-    ResolvedComparison ResolveComparison(ComparisonMode mode, string? otherBranch, string? parentBranch);
+    ResolvedComparison ResolveComparison(
+        ComparisonMode mode, string? otherBranch, string? parentBranch, string? commitSha = null);
+
+    /// <summary>
+    /// Lists the commits on the current branch, newest first, walking back to (and
+    /// including) the point where it diverged from <paramref name="mainBranch"/>.
+    /// When there is no main branch, no common history, or the current branch *is*
+    /// main, falls back to the most recent <paramref name="maxCount"/> commits so the
+    /// picker is never empty.
+    /// </summary>
+    System.Collections.Generic.IReadOnlyList<CommitInfo> GetBranchCommits(
+        string? mainBranch, int maxCount = 200);
 
     /// <summary>
     /// Lists files that differ between the given base commit and the current working

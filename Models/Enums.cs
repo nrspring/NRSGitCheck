@@ -20,6 +20,12 @@ public enum ComparisonMode
 
     /// <summary>The merge-base where the current branch diverged from its parent.</summary>
     BranchBase,
+
+    /// <summary>A specific commit on the current branch, picked by the user.</summary>
+    SinceCommit,
+
+    /// <summary>The merge-base with the repository's main branch, detected automatically.</summary>
+    VsMain,
 }
 
 /// <summary>How the diff is rendered (FR-19).</summary>

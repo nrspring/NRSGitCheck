@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(git add --renormalize .)",
+      "Bash(dotnet --version)",
+      "Bash(dotnet --list-sdks)",
+      "PowerShell(dotnet build NRSGitCheck.csproj -nologo 2>&1)",
+      "Bash(dotnet build *)",
+      "Bash(dotnet test *)",
+      "PowerShell(dotnet build NRSGitCheck.csproj -c Debug --nologo -v q 2>&1)",
+      "Bash(Select-Object -First 20)",
+      "PowerShell(Get-ChildItem -Path .claude\\\\skills -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }; if \\(Test-Path .claude\\\\skills\\) { \"has skills dir\" } else { \"no project skills dir\" })",
+      "PowerShell(\"name: $\\(git config user.name\\)\"; \"email: $\\(git config user.email\\)\"; \"recent author: $\\(git --no-pager log -1 --format='%an <%ae>'\\)\")",
+      "Bash(Select-String -NotMatch \"node_modules|\\\\.git\")",
+      "Bash(Select-Object -First 60)",
+      "PowerShell(git ls-files | Where-Object { $_ -notmatch \"node_modules\" } | Select-Object -First 80)",
+      "PowerShell(dotnet test --nologo -v q 2>&1)"
+    ]
+  }
+}

@@ -21,7 +21,8 @@ public sealed class SyntaxHighlighterTests
         public StubGitService(FileContent content) => _content = content;
         public FileContent GetFileContent(string baseCommitSha, FileChange change) => _content;
         public RepositorySnapshot OpenRepository(string path) => throw new System.NotSupportedException();
-        public ResolvedComparison ResolveComparison(ComparisonMode mode, string? a, string? b) => throw new System.NotSupportedException();
+        public ResolvedComparison ResolveComparison(ComparisonMode mode, string? a, string? b, string? commitSha = null) => throw new System.NotSupportedException();
+        public System.Collections.Generic.IReadOnlyList<CommitInfo> GetBranchCommits(string? mainBranch, int maxCount = 200) => throw new System.NotSupportedException();
         public IReadOnlyList<FileChange> GetChanges(string baseCommitSha) => throw new System.NotSupportedException();
         public IReadOnlyDictionary<string, FileStats> GetChangeStats(string baseCommitSha) => throw new System.NotSupportedException();
     }

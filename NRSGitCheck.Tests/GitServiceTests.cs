@@ -216,6 +216,156 @@ public sealed class GitServiceTests : IDisposable
         Assert.NotNull(resolved.Error);
     }
 
+    [Fact]
+    public void SinceCommit_resolves_to_the_chosen_commit()
+    {
+        var dir = InitRepo("repo");
+        var first = Commit(dir, "a.txt", "one\n");
+        Commit(dir, "b.txt", "two\n");
+
+        _git.OpenRepository(dir);
+        var resolved = _git.ResolveComparison(ComparisonMode.SinceCommit, null, null, first);
+
+        Assert.True(resolved.Found);
+        Assert.Equal(first, resolved.Sha);
+    }
+
+    [Fact]
+    public void SinceCommit_without_a_commit_is_unresolved()
+    {
+        var dir = InitRepo("repo");
+        Commit(dir, "a.txt", "one\n");
+
+        _git.OpenRepository(dir);
+        var resolved = _git.ResolveComparison(ComparisonMode.SinceCommit, null, null, null);
+
+        Assert.False(resolved.Found);
+        Assert.NotNull(resolved.Error);
+    }
+
+    [Fact]
+    public void SinceCommit_diff_spans_every_commit_after_the_chosen_one()
+    {
+        var dir = InitRepo("repo");
+        var first = Commit(dir, "a.txt", "one\n");
+        Commit(dir, "b.txt", "two\n");                              // committed after `first`
+        File.WriteAllText(Path.Combine(dir, "c.txt"), "three\n");    // still uncommitted
+
+        _git.OpenRepository(dir);
+        var sha = _git.ResolveComparison(ComparisonMode.SinceCommit, null, null, first).Sha!;
+        var changes = _git.GetChanges(sha);
+
+        // Both the later commit and the uncommitted file show up.
+        Assert.Contains(changes, c => c.Path == "b.txt" && c.Kind == ChangeKind.Added);
+        Assert.Contains(changes, c => c.Path == "c.txt" && c.Kind == ChangeKind.Untracked);
+    }
+
+    [Fact]
+    public void VsMain_resolves_to_the_merge_base_with_main()
+    {
+        var dir = InitRepo("repo");
+        var baseSha = Commit(dir, "a.txt", "one\n");
+        RenameCurrentBranch(dir, "main");
+
+        // Branch off, then advance both sides so the merge base is neither tip.
+        using (var repo = new Repository(dir))
+            Commands.Checkout(repo, repo.CreateBranch("feature"));
+        Commit(dir, "feature.txt", "f");
+
+        using (var repo = new Repository(dir))
+            Commands.Checkout(repo, repo.Branches["main"]);
+        Commit(dir, "main2.txt", "m");
+
+        using (var repo = new Repository(dir))
+            Commands.Checkout(repo, repo.Branches["feature"]);
+
+        _git.OpenRepository(dir);
+        var resolved = _git.ResolveComparison(ComparisonMode.VsMain, null, null);
+
+        Assert.True(resolved.Found);
+        Assert.Equal(baseSha, resolved.Sha);
+        Assert.Contains("main", resolved.Label);
+    }
+
+    [Fact]
+    public void VsMain_is_unresolved_when_there_is_no_main_or_master()
+    {
+        var dir = InitRepo("repo");
+        Commit(dir, "a.txt", "one\n");
+        RenameCurrentBranch(dir, "trunk");
+
+        _git.OpenRepository(dir);
+        var resolved = _git.ResolveComparison(ComparisonMode.VsMain, null, null);
+
+        Assert.False(resolved.Found);
+        Assert.NotNull(resolved.Error);
+    }
+
+    [Fact]
+    public void GetBranchCommits_stops_at_the_branch_point()
+    {
+        var dir = InitRepo("repo");
+        Commit(dir, "a.txt", "one\n");
+        var branchPoint = Commit(dir, "b.txt", "two\n");
+        RenameCurrentBranch(dir, "main");
+
+        using (var repo = new Repository(dir))
+            Commands.Checkout(repo, repo.CreateBranch("feature"));
+        var f1 = Commit(dir, "f1.txt", "f1");
+        var f2 = Commit(dir, "f2.txt", "f2");
+
+        _git.OpenRepository(dir);
+        var commits = _git.GetBranchCommits("main");
+
+        // Newest first, back to and including the branch point; nothing older.
+        Assert.Equal(new[] { f2, f1, branchPoint }, commits.Select(c => c.Sha));
+        Assert.True(commits[^1].IsBranchStart);
+        Assert.All(commits.Take(2), c => Assert.False(c.IsBranchStart));
+    }
+
+    [Fact]
+    public void GetBranchCommits_falls_back_to_recent_history_when_on_main()
+    {
+        var dir = InitRepo("repo");
+        Commit(dir, "a.txt", "one\n");
+        Commit(dir, "b.txt", "two\n");
+        RenameCurrentBranch(dir, "main");
+
+        _git.OpenRepository(dir);
+        var commits = _git.GetBranchCommits("main");
+
+        // The merge base with main is HEAD itself, so the picker shows plain history
+        // rather than a single useless entry.
+        Assert.Equal(2, commits.Count);
+        Assert.All(commits, c => Assert.False(c.IsBranchStart));
+    }
+
+    [Fact]
+    public void GetBranchCommits_respects_maxCount()
+    {
+        var dir = InitRepo("repo");
+        for (var i = 0; i < 5; i++)
+            Commit(dir, $"f{i}.txt", $"{i}");
+
+        _git.OpenRepository(dir);
+        var commits = _git.GetBranchCommits(null, maxCount: 3);
+
+        Assert.Equal(3, commits.Count);
+    }
+
+    [Fact]
+    public void Snapshot_reports_the_detected_main_branch()
+    {
+        var dir = InitRepo("repo");
+        Commit(dir, "a.txt", "one\n");
+        RenameCurrentBranch(dir, "main");
+
+        var snapshot = _git.OpenRepository(dir);
+
+        Assert.Equal("main", snapshot.MainBranch);
+        Assert.False(snapshot.HasRemote);
+    }
+
     // --- helpers ------------------------------------------------------------
 
     private string InitRepo(string name)
@@ -233,6 +383,18 @@ public sealed class GitServiceTests : IDisposable
         Commands.Stage(repo, file);
         var sig = new Signature("Test", "test@example.com", DateTimeOffset.Now);
         return repo.Commit($"add {file}", sig, sig).Sha;
+    }
+
+    /// <summary>Renames the checked-out branch, since `git init` may create main or master.</summary>
+    private static void RenameCurrentBranch(string dir, string name)
+    {
+        using var repo = new Repository(dir);
+        var previous = repo.Head.FriendlyName;
+        if (previous == name)
+            return;
+
+        Commands.Checkout(repo, repo.CreateBranch(name));
+        repo.Branches.Remove(previous);
     }
 
     private static void DeleteDirectory(string path)

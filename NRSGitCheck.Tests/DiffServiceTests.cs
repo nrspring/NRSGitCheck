@@ -22,7 +22,8 @@ public sealed class DiffServiceTests
 
         // Unused by these tests.
         public RepositorySnapshot OpenRepository(string path) => throw new NotSupportedException();
-        public ResolvedComparison ResolveComparison(ComparisonMode mode, string? otherBranch, string? parentBranch) => throw new NotSupportedException();
+        public ResolvedComparison ResolveComparison(ComparisonMode mode, string? otherBranch, string? parentBranch, string? commitSha = null) => throw new NotSupportedException();
+        public IReadOnlyList<CommitInfo> GetBranchCommits(string? mainBranch, int maxCount = 200) => throw new NotSupportedException();
         public IReadOnlyList<FileChange> GetChanges(string baseCommitSha) => throw new NotSupportedException();
         public IReadOnlyDictionary<string, FileStats> GetChangeStats(string baseCommitSha) => throw new NotSupportedException();
     }

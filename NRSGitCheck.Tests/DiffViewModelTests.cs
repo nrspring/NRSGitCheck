@@ -98,13 +98,75 @@ public sealed class DiffViewModelTests
         var scrolls = 0;
         vm.ScrollToRequested += _ => scrolls++;
 
-        await vm.LoadAsync("base", Change()); // lands on the first hunk
+        await vm.LoadAsync("base", Change()); // lands on the first section
 
-        Assert.True(vm.GoToNextHunk());        // -> second hunk
-        Assert.False(vm.GoToNextHunk());       // already at last
-        Assert.True(vm.GoToPreviousHunk());    // -> first hunk
-        Assert.False(vm.GoToPreviousHunk());   // already at first
+        Assert.True(vm.GoToNextSection());        // -> second section
+        Assert.False(vm.GoToNextSection());       // already at last
+        Assert.True(vm.GoToPreviousSection());    // -> first section
+        Assert.False(vm.GoToPreviousSection());   // already at first
         Assert.True(scrolls >= 2);
+    }
+
+    [Fact]
+    public async Task Sections_are_counted_per_changed_area_not_per_hunk()
+    {
+        // Two edits four lines apart: close enough that a context of 3 merges them
+        // into ONE hunk, but they are still two separate changed areas on screen.
+        var oldText = string.Join("\n", Enumerable.Range(1, 40).Select(i => $"line{i}")) + "\n";
+        var newText = string.Join("\n", Enumerable.Range(1, 40).Select(i =>
+            i == 10 ? "line10-x" : i == 14 ? "line14-x" : $"line{i}")) + "\n";
+
+        var doc = DiffEngine.Compute(oldText, newText, contextLines: 3);
+        Assert.Single(doc.Hunks);                 // one hunk...
+
+        var vm = new DiffViewModel(new StubDiff(doc), new StubSettings());
+        await vm.LoadAsync("base", Change());
+
+        Assert.Equal(2, vm.SectionCount);         // ...but two navigable sections
+        Assert.Equal(0, vm.CurrentSectionIndex);
+        Assert.True(vm.GoToNextSection());
+        Assert.Equal(1, vm.CurrentSectionIndex);
+        Assert.False(vm.GoToNextSection());
+    }
+
+    [Fact]
+    public async Task Whole_file_mode_still_exposes_every_changed_area()
+    {
+        // Whole-file mode renders the file as a single hunk; navigation must still
+        // stop at each edit rather than treating the file as one big change.
+        var oldText = string.Join("\n", Enumerable.Range(1, 90).Select(i => $"line{i}")) + "\n";
+        var newText = string.Join("\n", Enumerable.Range(1, 90).Select(i =>
+            i is 10 or 40 or 70 ? $"line{i}-x" : $"line{i}")) + "\n";
+
+        var doc = DiffEngine.Compute(oldText, newText, contextLines: 3, wholeFile: true);
+        Assert.Single(doc.Hunks);
+
+        var vm = new DiffViewModel(new StubDiff(doc), new StubSettings());
+        await vm.LoadAsync("base", Change());
+
+        Assert.Equal(3, vm.SectionCount);
+        Assert.True(vm.GoToNextSection());
+        Assert.True(vm.GoToNextSection());
+        Assert.False(vm.GoToNextSection());       // three areas, then done
+    }
+
+    [Fact]
+    public async Task Both_layouts_agree_on_the_section_count()
+    {
+        var oldText = string.Join("\n", Enumerable.Range(1, 60).Select(i => $"line{i}")) + "\n";
+        var newText = string.Join("\n", Enumerable.Range(1, 60).Select(i =>
+            i is 5 or 9 or 30 or 50 ? $"line{i}-x" : $"line{i}")) + "\n";
+
+        var doc = DiffEngine.Compute(oldText, newText, contextLines: 3);
+        var vm = new DiffViewModel(new StubDiff(doc), new StubSettings());
+        await vm.LoadAsync("base", Change());
+
+        vm.Layout = DiffLayout.Inline;
+        var inline = vm.SectionCount;
+        vm.Layout = DiffLayout.SideBySide;
+
+        Assert.Equal(4, inline);
+        Assert.Equal(inline, vm.SectionCount);    // index stays valid across a layout switch
     }
 
     [Fact]

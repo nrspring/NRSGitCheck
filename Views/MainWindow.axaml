@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:NRSGitCheck.ViewModels"
+        xmlns:models="using:NRSGitCheck.Models"
         xmlns:views="using:NRSGitCheck.Views"
         xmlns:conv="using:NRSGitCheck.Converters"
         x:Class="NRSGitCheck.Views.MainWindow"
@@ -93,6 +94,27 @@
                              FilterMode="ContainsOrdinal"
                              VerticalAlignment="Center"
                              IsVisible="{Binding IsBranchBaseMode}" />
+
+            <!-- Commits on this branch, newest first, back to the branch point. -->
+            <ComboBox ItemsSource="{Binding BranchCommits}"
+                      SelectedItem="{Binding SelectedCommit}"
+                      PlaceholderText="commit…"
+                      MinWidth="320"
+                      MaxDropDownHeight="420"
+                      VerticalAlignment="Center"
+                      IsVisible="{Binding IsSinceCommitMode}"
+                      ToolTip.Tip="Show everything that changed since this commit">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="models:CommitInfo">
+                  <StackPanel Spacing="1">
+                    <TextBlock Text="{Binding Label}"
+                               FontFamily="Cascadia Code,Consolas,monospace"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Detail}" FontSize="11" Opacity="0.6" />
+                  </StackPanel>
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
           </StackPanel>
 
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="0,0,12,0">
@@ -101,6 +123,17 @@
           </StackPanel>
 
           <Button Content="Refresh" Command="{Binding RefreshCommand}" VerticalAlignment="Center" />
+
+          <!-- The only action that writes to the repository: fast-forward main from its remote. -->
+          <Button Command="{Binding PullMainCommand}"
+                  VerticalAlignment="Center"
+                  Margin="6,0,0,0"
+                  ToolTip.Tip="Fetch and fast-forward the main branch. Your working tree is left alone unless main is checked out.">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="Pull" />
+              <TextBlock Text="{Binding MainBranchName}" FontWeight="SemiBold" />
+            </StackPanel>
+          </Button>
           <CheckBox Content="Auto" IsChecked="{Binding AutoRefreshEnabled}" VerticalAlignment="Center"
                     Margin="24,0,0,0"
                     ToolTip.Tip="Periodically check the repository for new changes" />

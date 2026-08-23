@@ -14,8 +14,8 @@ public static class KeyboardShortcuts
 {
     public static IReadOnlyList<ShortcutInfo> All { get; } = new[]
     {
-        new ShortcutInfo("Next change / hunk", "J  ·  Alt+↓"),
-        new ShortcutInfo("Previous change / hunk", "K  ·  Alt+↑"),
+        new ShortcutInfo("Next changed section", "N  ·  J  ·  Alt+↓"),
+        new ShortcutInfo("Previous changed section", "P  ·  K  ·  Alt+↑"),
         new ShortcutInfo("Next file", "Ctrl+↓  ·  ]"),
         new ShortcutInfo("Previous file", "Ctrl+↑  ·  ["),
         new ShortcutInfo("Toggle diff layout", "Ctrl+L"),
@@ -27,7 +27,7 @@ public static class KeyboardShortcuts
     };
 
     /// <summary>Condensed reminder shown persistently in the status bar (FR-26).</summary>
-    public const string StatusHint = "J / K change   ·   Ctrl+↑/↓ file   ·   Ctrl+L layout   ·   ? help";
+    public const string StatusHint = "N / P change   ·   Ctrl+↑/↓ file   ·   Ctrl+L layout   ·   ? help";
 }
 
 /// <summary>Where to land within a file's hunks when navigating across file boundaries (FR-27).</summary>

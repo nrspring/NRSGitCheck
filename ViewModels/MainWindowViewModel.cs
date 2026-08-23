@@ -19,6 +19,7 @@ public partial class MainWindowViewModel : ViewModelBase
 {
     private readonly ISettingsService _settings;
     private readonly IGitService _git;
+    private readonly IGitCommandService _gitCommands;
     private readonly IFolderPickerService _folderPicker;
 
     private readonly IThemeService _themeService;
@@ -26,12 +27,14 @@ public partial class MainWindowViewModel : ViewModelBase
     public MainWindowViewModel(
         ISettingsService settings,
         IGitService git,
+        IGitCommandService gitCommands,
         IFolderPickerService folderPicker,
         DiffViewModel diff,
         IThemeService themeService)
     {
         _settings = settings;
         _git = git;
+        _gitCommands = gitCommands;
         _folderPicker = folderPicker;
         _themeService = themeService;
         Diff = diff;
@@ -84,6 +87,8 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isBusy;
 
+    partial void OnIsBusyChanged(bool value) => PullMainCommand.NotifyCanExecuteChanged();
+
     [ObservableProperty]
     private string? _errorMessage;
 
@@ -96,6 +101,8 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool _hasRepo;
 
+    partial void OnHasRepoChanged(bool value) => PullMainCommand.NotifyCanExecuteChanged();
+
     [ObservableProperty]
     private string? _repositoryName;
 
@@ -107,6 +114,17 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _resolvedTargetLabel = string.Empty;
+
+    /// <summary>Working directory of the open repo; needed by the Git CLI for Pull main.</summary>
+    private string? _workingDirectory;
+
+    /// <summary>The detected integration branch ("main", "master", or "origin/main").</summary>
+    [ObservableProperty]
+    private string? _mainBranchName;
+
+    /// <summary>Whether the repo has any remote — Pull main is pointless without one.</summary>
+    [ObservableProperty]
+    private bool _hasRemote;
 
     public ObservableCollection<RecentRepositoryViewModel> RecentRepositories { get; } = new();
     public ObservableCollection<string> LocalBranches { get; } = new();
@@ -144,7 +162,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public IReadOnlyList<ComparisonModeOption> ComparisonModes { get; } = new[]
     {
-        new ComparisonModeOption(ComparisonMode.LastCommit, "Last commit (HEAD)"),
+        new ComparisonModeOption(ComparisonMode.LastCommit, "Uncommitted changes"),
+        new ComparisonModeOption(ComparisonMode.SinceCommit, "Since commit…"),
+        new ComparisonModeOption(ComparisonMode.VsMain, "All changes vs main"),
         new ComparisonModeOption(ComparisonMode.OtherBranch, "Another branch"),
         new ComparisonModeOption(ComparisonMode.BranchBase, "Branch base (merge-base)"),
     };
@@ -158,18 +178,36 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private string? _parentBranch;
 
+    /// <summary>Commits on the current branch, newest first, back to the branch point.</summary>
+    public ObservableCollection<CommitInfo> BranchCommits { get; } = new();
+
+    /// <summary>The commit the working tree is compared against in <see cref="ComparisonMode.SinceCommit"/>.</summary>
+    [ObservableProperty]
+    private CommitInfo? _selectedCommit;
+
     public bool IsOtherBranchMode => SelectedMode?.Mode == ComparisonMode.OtherBranch;
     public bool IsBranchBaseMode => SelectedMode?.Mode == ComparisonMode.BranchBase;
+    public bool IsSinceCommitMode => SelectedMode?.Mode == ComparisonMode.SinceCommit;
 
     partial void OnSelectedModeChanged(ComparisonModeOption value)
     {
         OnPropertyChanged(nameof(IsOtherBranchMode));
         OnPropertyChanged(nameof(IsBranchBaseMode));
+        OnPropertyChanged(nameof(IsSinceCommitMode));
+
+        // Entering the commit picker with nothing chosen defaults to the branch point,
+        // which shows the whole branch; the user can then step forward through commits.
+        if (value?.Mode == ComparisonMode.SinceCommit && SelectedCommit is null && BranchCommits.Count > 0)
+        {
+            SetField(() => SelectedCommit = BranchCommits[^1]);
+        }
+
         TriggerRefresh();
     }
 
     partial void OnSelectedBranchChanged(string? value) => TriggerRefresh();
     partial void OnParentBranchChanged(string? value) => TriggerRefresh();
+    partial void OnSelectedCommitChanged(CommitInfo? value) => TriggerRefresh();
 
     // --- Lifecycle ----------------------------------------------------------
 
@@ -201,6 +239,68 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [RelayCommand]
     private Task Refresh() => RefreshComparisonAsync();
+
+    // --- Pull main ----------------------------------------------------------
+
+    /// <summary>
+    /// Enabled only when there is something to pull: an open repo with a remote and
+    /// a detected main branch, and no other operation in flight.
+    /// </summary>
+    private bool CanPullMain() =>
+        HasRepo && HasRemote && !string.IsNullOrEmpty(MainBranchName) && !IsBusy && !IsPulling;
+
+    /// <summary>True while a pull is running, so the button can show progress.</summary>
+    [ObservableProperty]
+    private bool _isPulling;
+
+    partial void OnIsPullingChanged(bool value) => PullMainCommand.NotifyCanExecuteChanged();
+
+    /// <summary>
+    /// Brings the main branch up to date from its remote. This is the only action in
+    /// the app that writes to the repository; it is fast-forward only, and leaves the
+    /// working tree alone unless main itself is checked out.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanPullMain))]
+    private async Task PullMain()
+    {
+        if (_workingDirectory is null)
+            return;
+
+        ErrorMessage = null;
+        IsPulling = true;
+        var previousStatus = Status;
+        Status = $"Pulling {MainBranchName}…";
+        try
+        {
+            var result = await _gitCommands.PullMainAsync(_workingDirectory, MainBranchName, CurrentBranch);
+
+            if (!result.Success)
+            {
+                ErrorMessage = result.Message;
+                Status = previousStatus;
+                return;
+            }
+
+            // Refs moved underneath the open LibGit2Sharp handle, which caches them;
+            // reopening gives the rest of the app a consistent view of the new state.
+            var snapshot = await Task.Run(() => _git.OpenRepository(_workingDirectory));
+            ApplySnapshot(snapshot); // also refills the commit picker, keeping the selection
+            await RefreshComparisonAsync();
+            Status = result.Message.Length > 0 ? result.Message : $"{MainBranchName} is up to date.";
+        }
+        catch (GitException ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Pull failed: {ex.Message}";
+        }
+        finally
+        {
+            IsPulling = false;
+        }
+    }
 
     // --- Auto-refresh -------------------------------------------------------
 
@@ -242,10 +342,11 @@ public partial class MainWindowViewModel : ViewModelBase
             var mode = SelectedMode.Mode;
             var branch = SelectedBranch;
             var parent = ParentBranch;
+            var commit = SelectedCommit?.Sha;
 
             var result = await Task.Run(() =>
             {
-                var resolved = _git.ResolveComparison(mode, branch, parent);
+                var resolved = _git.ResolveComparison(mode, branch, parent, commit);
                 if (!resolved.Found || resolved.Sha is null)
                     return (resolved, Changes: (IReadOnlyList<FileChange>?)null, Signature: SignatureFor(resolved.Sha, null));
 
@@ -346,6 +447,10 @@ public partial class MainWindowViewModel : ViewModelBase
         RepositoryName = snapshot.Name;
         CurrentBranch = snapshot.CurrentBranch;
         HeadShortSha = snapshot.HeadShortSha;
+        _workingDirectory = snapshot.WorkingDirectory;
+        MainBranchName = snapshot.MainBranch;
+        HasRemote = snapshot.HasRemote;
+        PullMainCommand.NotifyCanExecuteChanged();
 
         LocalBranches.Clear();
         foreach (var b in snapshot.LocalBranches)
@@ -357,6 +462,34 @@ public partial class MainWindowViewModel : ViewModelBase
                               ?? snapshot.LocalBranches.FirstOrDefault();
         SetField(() => SelectedBranch = preferredBranch?.Name);
         SetField(() => ParentBranch = snapshot.DefaultParentBranch);
+        ReloadBranchCommits(snapshot.MainBranch, keepSha: SelectedCommit?.Sha);
+    }
+
+    /// <summary>
+    /// Refills the commit picker for the open repository, preserving the current
+    /// selection when that commit is still on the branch. Falls back to the branch
+    /// point so <see cref="ComparisonMode.SinceCommit"/> always has something to
+    /// resolve — including when the mode was restored from settings on launch.
+    /// </summary>
+    private void ReloadBranchCommits(string? mainBranch, string? keepSha)
+    {
+        IReadOnlyList<CommitInfo> commits;
+        try
+        {
+            commits = _git.GetBranchCommits(mainBranch);
+        }
+        catch (Exception)
+        {
+            commits = Array.Empty<CommitInfo>();
+        }
+
+        BranchCommits.Clear();
+        foreach (var c in commits)
+            BranchCommits.Add(c);
+
+        var restored = keepSha is null ? null : BranchCommits.FirstOrDefault(c => c.Sha == keepSha);
+        var fallback = IsSinceCommitMode && BranchCommits.Count > 0 ? BranchCommits[^1] : null;
+        SetField(() => SelectedCommit = restored ?? fallback);
     }
 
     private async Task RefreshComparisonAsync()
@@ -370,8 +503,9 @@ public partial class MainWindowViewModel : ViewModelBase
             var mode = SelectedMode.Mode;
             var branch = SelectedBranch;
             var parent = ParentBranch;
+            var commit = SelectedCommit?.Sha;
 
-            var resolved = await Task.Run(() => _git.ResolveComparison(mode, branch, parent));
+            var resolved = await Task.Run(() => _git.ResolveComparison(mode, branch, parent, commit));
 
             ResolvedTargetLabel = resolved.Label;
             Status = resolved.Found
@@ -507,38 +641,81 @@ public partial class MainWindowViewModel : ViewModelBase
     /// <summary>Event raised to ask the view to focus the file filter (FR-25).</summary>
     public event Action? FocusFilterRequested;
 
-    public void NextFile()
+    /// <summary>
+    /// Selects the next file, stopping at the last one rather than wrapping.
+    /// Returns false when the selection did not move, so callers can tell a real
+    /// step from a clamped no-op.
+    /// </summary>
+    public bool NextFile()
     {
         if (_orderedFileNodes.Count == 0)
-            return;
+            return false;
+
         var index = CurrentFileNodeIndex();
-        SelectedFile = _orderedFileNodes[Math.Min(index + 1, _orderedFileNodes.Count - 1)].File;
+        var target = Math.Min(index + 1, _orderedFileNodes.Count - 1);
+        if (target == index)
+            return false;
+
+        SelectedFile = _orderedFileNodes[target].File;
+        return true;
     }
 
-    public void PreviousFile()
+    /// <summary>
+    /// Selects the previous file, stopping at the first one rather than wrapping.
+    /// Returns false when the selection did not move.
+    /// </summary>
+    public bool PreviousFile()
     {
         if (_orderedFileNodes.Count == 0)
-            return;
+            return false;
+
         var index = SelectedFile is null ? _orderedFileNodes.Count : CurrentFileNodeIndex();
-        SelectedFile = _orderedFileNodes[Math.Max(index - 1, 0)].File;
+        var target = Math.Max(index - 1, 0);
+        if (target == index)
+            return false;
+
+        SelectedFile = _orderedFileNodes[target].File;
+        return true;
     }
 
     private int CurrentFileNodeIndex() =>
         SelectedFile is null ? -1 : _orderedFileNodes.FindIndex(n => n.File == SelectedFile);
 
-    public void NextHunk()
+    /// <summary>
+    /// Steps to the next changed section within the open file, crossing into the next
+    /// file's first section only once this one is exhausted (FR-24, FR-27).
+    /// </summary>
+    public void NextChange()
     {
-        if (!Diff.GoToNextHunk())
-            NextFile(); // falls through to the next file's first hunk (FR-27)
+        // A file whose diff is still streaming has an incomplete section list, so
+        // "no next section" means "not yet", not "done with this file". Falling
+        // through here would skip the file's changes on a quick second keypress.
+        if (Diff.IsLoading)
+            return;
+
+        if (!Diff.GoToNextSection())
+            NextFile(); // falls through to the next file's first section (FR-27)
     }
 
-    public void PreviousHunk()
+    /// <summary>
+    /// Steps to the previous changed section within the open file, crossing into the
+    /// previous file's last section only once this one is exhausted (FR-24, FR-27).
+    /// </summary>
+    public void PreviousChange()
     {
-        if (!Diff.GoToPreviousHunk())
-        {
-            _nextLoadPosition = HunkPosition.Last;
-            PreviousFile(); // lands on the previous file's last hunk (FR-27)
-        }
+        if (Diff.IsLoading)
+            return; // see NextChange: an incomplete section list is not an exhausted one
+
+        if (Diff.GoToPreviousSection())
+            return;
+
+        // Land on the previous file's last section (FR-27). OnSelectedFileChanged
+        // consumes the flag and resets it -- but only if the selection actually moves,
+        // so clear it here when there is no previous file, otherwise the next file the
+        // user opens would be scrolled to its last section instead of its first.
+        _nextLoadPosition = HunkPosition.Last;
+        if (!PreviousFile())
+            _nextLoadPosition = HunkPosition.First;
     }
 
     public void ToggleDiffLayout() => Diff.ToggleLayoutCommand.Execute(null);

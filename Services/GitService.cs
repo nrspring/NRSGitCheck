@@ -49,7 +49,8 @@ public sealed class GitService : IGitService, IDisposable
         }
     }
 
-    public ResolvedComparison ResolveComparison(ComparisonMode mode, string? otherBranch, string? parentBranch)
+    public ResolvedComparison ResolveComparison(
+        ComparisonMode mode, string? otherBranch, string? parentBranch, string? commitSha = null)
     {
         lock (_gate)
         {
@@ -94,9 +95,88 @@ public sealed class GitService : IGitService, IDisposable
                     return ResolvedComparison.Resolved(baseCommit.Sha, $"base with {parentBranch} ({Shorten(baseCommit.Sha)})");
                 }
 
+                case ComparisonMode.SinceCommit:
+                {
+                    if (string.IsNullOrWhiteSpace(commitSha))
+                        return ResolvedComparison.Unresolved("Select a commit to compare against.");
+
+                    var commit = repo.Lookup<Commit>(commitSha);
+                    if (commit is null)
+                        return ResolvedComparison.Unresolved($"Commit '{Shorten(commitSha)}' was not found.");
+
+                    return ResolvedComparison.Resolved(commit.Sha, $"{Shorten(commit.Sha)} ({Summarize(commit)})");
+                }
+
+                case ComparisonMode.VsMain:
+                {
+                    var main = DetectMainBranch(repo);
+                    if (main is null)
+                        return ResolvedComparison.Unresolved("No main/master branch was found in this repository.");
+
+                    var mainTip = main.Tip;
+                    if (mainTip is null)
+                        return ResolvedComparison.Unresolved($"Branch '{main.FriendlyName}' has no commits.");
+
+                    var mergeBase = repo.ObjectDatabase.FindMergeBase(repo.Head.Tip, mainTip);
+                    if (mergeBase is null)
+                        return ResolvedComparison.Unresolved($"No common history with '{main.FriendlyName}'.");
+
+                    return ResolvedComparison.Resolved(
+                        mergeBase.Sha, $"{main.FriendlyName} base ({Shorten(mergeBase.Sha)})");
+                }
+
                 default:
                     return ResolvedComparison.Unresolved("Unknown comparison mode.");
             }
+        }
+    }
+
+    public IReadOnlyList<CommitInfo> GetBranchCommits(string? mainBranch, int maxCount = 200)
+    {
+        lock (_gate)
+        {
+            var repo = _repo ?? throw new GitException("No repository is open.");
+
+            if (repo.Info.IsHeadUnborn || repo.Head.Tip is null)
+                return Array.Empty<CommitInfo>();
+
+            var head = repo.Head.Tip;
+
+            // Where the branch started: the merge-base with main. Null when there is
+            // no main, no shared history, or we *are* main (base == HEAD) -- in those
+            // cases the walk just yields recent history so the picker is never empty.
+            string? branchStartSha = null;
+            var main = mainBranch is null ? DetectMainBranch(repo) : FindBranch(repo, mainBranch);
+            if (main?.Tip is not null && main.Tip.Sha != head.Sha)
+            {
+                var mergeBase = repo.ObjectDatabase.FindMergeBase(head, main.Tip);
+                if (mergeBase is not null && mergeBase.Sha != head.Sha)
+                    branchStartSha = mergeBase.Sha;
+            }
+
+            var filter = new CommitFilter
+            {
+                IncludeReachableFrom = head,
+                SortBy = CommitSortStrategies.Topological | CommitSortStrategies.Time,
+            };
+
+            var result = new List<CommitInfo>();
+            foreach (var commit in repo.Commits.QueryBy(filter))
+            {
+                var isStart = commit.Sha == branchStartSha;
+                result.Add(new CommitInfo(
+                    commit.Sha,
+                    Shorten(commit.Sha),
+                    Summarize(commit),
+                    commit.Author?.Name ?? "",
+                    commit.Author?.When ?? commit.Committer?.When ?? DateTimeOffset.MinValue,
+                    isStart));
+
+                if (isStart || result.Count >= maxCount)
+                    break;
+            }
+
+            return result;
         }
     }
 
@@ -331,9 +411,11 @@ public sealed class GitService : IGitService, IDisposable
             .ToList();
 
         var parent = DetectDefaultParent(repo, currentBranch, locals);
+        var main = DetectMainBranch(repo)?.FriendlyName;
+        var hasRemote = repo.Network.Remotes.Any();
 
         return new RepositorySnapshot(
-            workdir, name, currentBranch, isDetached, isUnborn, headShort, locals, parent);
+            workdir, name, currentBranch, isDetached, isUnborn, headShort, locals, parent, main, hasRemote);
     }
 
     /// <summary>
@@ -367,6 +449,39 @@ public sealed class GitService : IGitService, IDisposable
 
     private static Branch? FindLocalBranch(Repository repo, string name) =>
         repo.Branches.FirstOrDefault(b => !b.IsRemote && b.FriendlyName == name);
+
+    /// <summary>Finds a branch by friendly name, preferring a local one over a remote-tracking one.</summary>
+    private static Branch? FindBranch(Repository repo, string name) =>
+        FindLocalBranch(repo, name) ?? repo.Branches.FirstOrDefault(b => b.FriendlyName == name);
+
+    /// <summary>
+    /// The repository's integration branch: a local <c>main</c>/<c>master</c> if there
+    /// is one, otherwise the remote-tracking equivalent so the comparison still works
+    /// in a repo that has never checked main out locally. Returns null if neither exists.
+    /// </summary>
+    private static Branch? DetectMainBranch(Repository repo)
+    {
+        foreach (var name in new[] { "main", "master" })
+            if (FindLocalBranch(repo, name) is { } local)
+                return local;
+
+        foreach (var name in new[] { "origin/main", "origin/master" })
+            if (repo.Branches.FirstOrDefault(b => b.IsRemote && b.FriendlyName == name) is { } remote)
+                return remote;
+
+        return null;
+    }
+
+    /// <summary>First line of a commit message, clipped so it fits the picker.</summary>
+    private static string Summarize(Commit commit)
+    {
+        var text = commit.MessageShort;
+        if (string.IsNullOrWhiteSpace(text))
+            text = (commit.Message ?? "").Split('\n')[0];
+
+        text = text.Trim();
+        return text.Length <= 72 ? text : text[..69] + "...";
+    }
 
     private static string Shorten(string? sha) =>
         string.IsNullOrEmpty(sha) ? "" : sha.Length <= 7 ? sha : sha[..7];

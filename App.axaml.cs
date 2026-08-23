@@ -47,6 +47,7 @@ public partial class App : Application
         // Services
         services.AddSingleton<ISettingsService>(_ => new SettingsService(SettingsService.DefaultFilePath));
         services.AddSingleton<IGitService, GitService>();
+        services.AddSingleton<IGitCommandService, GitCommandService>();
         services.AddSingleton<ISyntaxHighlighter, SyntaxHighlighter>();
         services.AddSingleton<IDiffService, DiffService>();
         services.AddSingleton<IThemeService, ThemeService>();
