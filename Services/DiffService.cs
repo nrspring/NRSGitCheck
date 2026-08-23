@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using NRSGitCheck.Models;
 
@@ -11,6 +12,16 @@ public sealed class DiffService : IDiffService
 {
     /// <summary>Above this many lines on either side, the diff is not rendered (FR-22).</summary>
     private const int MaxDiffLines = 20_000;
+
+    /// <summary>
+    /// Above this many lines, syntax colors are skipped. TextMate grammars carry
+    /// state from line to line, so a file has to be tokenized sequentially and in
+    /// full before the first hunk can be shown -- roughly 75us per line per side on
+    /// real source, which on a large file stalls the progressive render for seconds.
+    /// Past this point the diff still gets its add/remove tints and word-level
+    /// emphasis; only the language coloring is dropped.
+    /// </summary>
+    private const int MaxHighlightedLines = 4_000;
 
     private readonly IGitService _git;
     private readonly ISyntaxHighlighter _highlighter;
@@ -58,14 +69,20 @@ public sealed class DiffService : IDiffService
         var content = _git.GetFileContent(baseCommitSha, change);
         if (content.IsBinary)
             return DiffStream.Binary();
+        if (content.IsTooLarge)
+            return DiffStream.TooLarge();
 
-        if (CountLines(content.OldText) > MaxDiffLines || CountLines(content.NewText) > MaxDiffLines)
+        var oldLines = CountLines(content.OldText);
+        var newLines = CountLines(content.NewText);
+        if (oldLines > MaxDiffLines || newLines > MaxDiffLines)
             return DiffStream.TooLarge();
 
         // Highlighting must see the whole file (multi-line grammar state), so it is
-        // resolved up front; the slow part — the diff — then streams hunk by hunk.
-        var oldColors = _highlighter.Highlight(change.Path, content.OldText);
-        var newColors = _highlighter.Highlight(change.Path, content.NewText);
+        // resolved up front, before any hunk can stream. That is affordable for
+        // ordinary files and not for big ones, hence the cap.
+        var highlight = Math.Max(oldLines, newLines) <= MaxHighlightedLines;
+        var oldColors = highlight ? _highlighter.Highlight(change.Path, content.OldText) : null;
+        var newColors = highlight ? _highlighter.Highlight(change.Path, content.NewText) : null;
 
         return new DiffStream
         {

@@ -331,8 +331,15 @@ public sealed class GitService : IGitService, IDisposable
             if (change.Kind != ChangeKind.Deleted)
             {
                 var full = Path.Combine(repo.Info.WorkingDirectory, change.Path);
-                if (File.Exists(full))
+                var info = new FileInfo(full);
+                if (info.Exists)
                 {
+                    // Check the size before reading: the diff view refuses anything
+                    // this big anyway, and reading it first would spike memory by the
+                    // full file size for a file the user cannot be shown.
+                    if (info.Length > MaxLoadedFileBytes)
+                        return new FileContent("", "", false, IsTooLarge: true);
+
                     var bytes = File.ReadAllBytes(full);
                     if (LooksBinary(bytes))
                         isBinary = true;
@@ -344,6 +351,14 @@ public sealed class GitService : IGitService, IDisposable
             return isBinary ? new FileContent("", "", true) : new FileContent(oldText, newText, false);
         }
     }
+
+    /// <summary>
+    /// Ceiling on a working-tree file the diff view will even load. Comfortably above
+    /// anything it can render (it stops at 20,000 lines), so this only ever trips for
+    /// files that would be rejected a moment later -- but it trips before the read
+    /// rather than after, so a huge file cannot be pulled into memory first.
+    /// </summary>
+    private const long MaxLoadedFileBytes = 64L * 1024 * 1024;
 
     private static bool LooksBinary(byte[] bytes)
     {
