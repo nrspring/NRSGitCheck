@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
+using NRSGitCheck.Models;
 
 namespace NRSGitCheck.Services;
 
@@ -22,4 +23,14 @@ public interface IGitCommandService
     /// </summary>
     Task<GitCommandResult> PullMainAsync(
         string workingDirectory, string? mainBranch, string? currentBranch, CancellationToken ct = default);
+
+    /// <summary>
+    /// Fetches a pull request's head into a local <c>pr-N</c> branch and checks it
+    /// out. Like <see cref="PullMainAsync"/> this is fast-forward only: if a
+    /// <c>pr-N</c> branch already exists and has diverged (a force-push, or local
+    /// commits), the fetch is refused rather than rewritten. The checkout is a plain
+    /// one, so Git itself refuses to proceed when uncommitted work would be lost.
+    /// </summary>
+    Task<GitCommandResult> CheckoutPullRequestAsync(
+        string workingDirectory, PullRequestReference pr, string? currentBranch, CancellationToken ct = default);
 }

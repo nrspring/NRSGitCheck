@@ -124,6 +124,12 @@
 
           <Button Content="Refresh" Command="{Binding RefreshCommand}" VerticalAlignment="Center" />
 
+          <Button Content="Review PR…"
+                  Command="{Binding OpenPullRequestDialogCommand}"
+                  VerticalAlignment="Center"
+                  Margin="6,0,0,0"
+                  ToolTip.Tip="Paste a pull request link to fetch it and switch to it" />
+
           <!-- The only action that writes to the repository: fast-forward main from its remote. -->
           <Button Command="{Binding PullMainCommand}"
                   VerticalAlignment="Center"
@@ -317,6 +323,50 @@
   </Border>
 
   <!-- Keyboard shortcuts cheat-sheet overlay (FR-26) -->
+  <!-- Review-a-PR modal: fetches refs/pull/N/head into a local pr-N branch. -->
+  <Border IsVisible="{Binding IsPullRequestDialogVisible}" Background="#99000000">
+    <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="24"
+            MinWidth="520"
+            MaxWidth="620"
+            HorizontalAlignment="Center" VerticalAlignment="Center">
+      <StackPanel Spacing="12">
+        <TextBlock Text="Review a pull request" FontSize="18" FontWeight="SemiBold" />
+        <TextBlock Opacity="0.7" TextWrapping="Wrap"
+                   Text="Paste the pull request link (or just its number). It is fetched onto a local pr-N branch, checked out, and compared against main." />
+
+        <TextBox Name="PullRequestBox"
+                 Text="{Binding PullRequestInput, Mode=TwoWay}"
+                 Watermark="https://github.com/owner/repo/pull/123"
+                 IsEnabled="{Binding !IsFetchingPullRequest}"
+                 FontFamily="Cascadia Code,Consolas,monospace" />
+
+        <TextBlock Text="{Binding PullRequestError}"
+                   IsVisible="{Binding PullRequestError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                   Foreground="{DynamicResource SystemControlErrorTextForegroundBrush}"
+                   TextWrapping="Wrap" />
+
+        <TextBlock Opacity="0.5" FontSize="11" TextWrapping="Wrap"
+                   Text="Your working tree must be clean — Git refuses the checkout if uncommitted changes would be lost. The pr-N branch is managed here: if the PR was force-pushed, it is reset to the PR's current head." />
+
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+          <Button Content="Cancel"
+                  Command="{Binding ClosePullRequestDialogCommand}"
+                  IsEnabled="{Binding !IsFetchingPullRequest}"
+                  Padding="14,5" />
+          <Button Content="Fetch and switch"
+                  Command="{Binding CheckoutPullRequestCommand}"
+                  IsDefault="True"
+                  Classes="accent"
+                  Padding="14,5" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+  </Border>
+
   <Border IsVisible="{Binding IsHelpVisible}" Background="#99000000">
     <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"

@@ -101,7 +101,11 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool _hasRepo;
 
-    partial void OnHasRepoChanged(bool value) => PullMainCommand.NotifyCanExecuteChanged();
+    partial void OnHasRepoChanged(bool value)
+    {
+        PullMainCommand.NotifyCanExecuteChanged();
+        OpenPullRequestDialogCommand.NotifyCanExecuteChanged();
+    }
 
     [ObservableProperty]
     private string? _repositoryName;
@@ -117,6 +121,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
     /// <summary>Working directory of the open repo; needed by the Git CLI for Pull main.</summary>
     private string? _workingDirectory;
+
+    /// <summary>Fetch URL of the repository's origin, used to sanity-check pasted PR links.</summary>
+    private string? _originUrl;
 
     /// <summary>The detected integration branch ("main", "master", or "origin/main").</summary>
     [ObservableProperty]
@@ -239,6 +246,121 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [RelayCommand]
     private Task Refresh() => RefreshComparisonAsync();
+
+    // --- Review a pull request ----------------------------------------------
+
+    /// <summary>Whether the "review a pull request" modal is showing.</summary>
+    [ObservableProperty]
+    private bool _isPullRequestDialogVisible;
+
+    /// <summary>The link or number the user pasted.</summary>
+    [ObservableProperty]
+    private string? _pullRequestInput;
+
+    /// <summary>Validation or Git failure shown inside the modal.</summary>
+    [ObservableProperty]
+    private string? _pullRequestError;
+
+    /// <summary>True while the fetch/checkout is running, to disable the modal's buttons.</summary>
+    [ObservableProperty]
+    private bool _isFetchingPullRequest;
+
+    partial void OnIsFetchingPullRequestChanged(bool value) =>
+        CheckoutPullRequestCommand.NotifyCanExecuteChanged();
+
+    partial void OnPullRequestInputChanged(string? value) =>
+        PullRequestError = null; // stop showing an error about text they've since edited
+
+    private bool CanOpenPullRequestDialog() => HasRepo && HasRemote;
+
+    [RelayCommand(CanExecute = nameof(CanOpenPullRequestDialog))]
+    private void OpenPullRequestDialog()
+    {
+        PullRequestError = null;
+        PullRequestInput = null;
+        IsPullRequestDialogVisible = true;
+        PullRequestInputRequested?.Invoke();
+    }
+
+    [RelayCommand]
+    private void ClosePullRequestDialog() => IsPullRequestDialogVisible = false;
+
+    /// <summary>Asks the view to focus the modal's text box when it opens.</summary>
+    public event Action? PullRequestInputRequested;
+
+    private bool CanCheckoutPullRequest() => !IsFetchingPullRequest;
+
+    /// <summary>
+    /// Fetches the pasted pull request onto a local branch, checks it out, and
+    /// switches the comparison to "all changes vs main" so the diff matches the
+    /// PR's own Files-changed view.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanCheckoutPullRequest))]
+    private async Task CheckoutPullRequest()
+    {
+        if (_workingDirectory is null)
+            return;
+
+        if (!PullRequestReference.TryParse(PullRequestInput, out var pr, out var parseError) || pr is null)
+        {
+            PullRequestError = parseError;
+            return;
+        }
+
+        // A link from another project would silently fetch that project's PR number
+        // into this repository, so refuse rather than review the wrong thing.
+        var originSlug = PullRequestReference.SlugFromRemoteUrl(_originUrl);
+        if (pr.Slug is { } linkSlug && originSlug is not null &&
+            !string.Equals(linkSlug, originSlug, StringComparison.OrdinalIgnoreCase))
+        {
+            PullRequestError =
+                $"That link is for {linkSlug}, but this repository is {originSlug}.";
+            return;
+        }
+
+        PullRequestError = null;
+        IsFetchingPullRequest = true;
+        var previousStatus = Status;
+        Status = $"Fetching PR #{pr.Number}…";
+        try
+        {
+            var result = await _gitCommands.CheckoutPullRequestAsync(_workingDirectory, pr, CurrentBranch);
+            if (!result.Success)
+            {
+                PullRequestError = result.Message;
+                Status = previousStatus;
+                return;
+            }
+
+            // HEAD and the working tree both moved; reopen so the rest of the app
+            // sees the new branch rather than the cached one.
+            var snapshot = await Task.Run(() => _git.OpenRepository(_workingDirectory));
+            ApplySnapshot(snapshot);
+
+            // The PR's own diff is measured from where it forked off main.
+            SetField(() => SelectedMode =
+                ComparisonModes.FirstOrDefault(m => m.Mode == ComparisonMode.VsMain) ?? SelectedMode);
+            OnPropertyChanged(nameof(IsOtherBranchMode));
+            OnPropertyChanged(nameof(IsBranchBaseMode));
+            OnPropertyChanged(nameof(IsSinceCommitMode));
+
+            IsPullRequestDialogVisible = false;
+            await RefreshComparisonAsync();
+            Status = result.Message;
+        }
+        catch (GitException ex)
+        {
+            PullRequestError = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            PullRequestError = $"Could not check out the pull request: {ex.Message}";
+        }
+        finally
+        {
+            IsFetchingPullRequest = false;
+        }
+    }
 
     // --- Pull main ----------------------------------------------------------
 
@@ -450,7 +572,9 @@ public partial class MainWindowViewModel : ViewModelBase
         _workingDirectory = snapshot.WorkingDirectory;
         MainBranchName = snapshot.MainBranch;
         HasRemote = snapshot.HasRemote;
+        _originUrl = snapshot.OriginUrl;
         PullMainCommand.NotifyCanExecuteChanged();
+        OpenPullRequestDialogCommand.NotifyCanExecuteChanged();
 
         LocalBranches.Clear();
         foreach (var b in snapshot.LocalBranches)

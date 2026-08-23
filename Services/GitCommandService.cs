@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using NRSGitCheck.Models;
 using System.Diagnostics;
 using System.Text;
 using System.Threading;
@@ -56,6 +57,64 @@ public sealed class GitCommandService : IGitCommandService
             ? new GitCommandResult(true, $"{localMain} updated from {remote}/{localMain}.")
             : update;
     }
+
+    public async Task<GitCommandResult> CheckoutPullRequestAsync(
+        string workingDirectory, PullRequestReference pr, string? currentBranch, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(workingDirectory))
+            return new GitCommandResult(false, "No repository is open.");
+
+        var branch = pr.LocalBranch;
+
+        // Already sitting on this PR's branch: Git refuses to update a checked-out
+        // branch through a refspec, so fast-forward the working tree instead.
+        if (string.Equals(currentBranch, branch, StringComparison.Ordinal))
+        {
+            var refresh = await RunAsync(workingDirectory, ct, "fetch", "origin", pr.RemoteRef);
+            if (!refresh.Success)
+                return refresh;
+
+            var ff = await RunAsync(workingDirectory, ct, "merge", "--ff-only", "FETCH_HEAD");
+            return ff.Success
+                ? new GitCommandResult(true, $"Updated {branch} to the latest push on PR #{pr.Number}.")
+                : ff;
+        }
+
+        // Land the PR head on a local branch. Try fast-forward first (no leading
+        // '+'), which covers the ordinary case of new commits being pushed.
+        var reset = false;
+        var fetch = await RunAsync(
+            workingDirectory, ct, "fetch", "origin", $"{pr.RemoteRef}:refs/heads/{branch}");
+
+        if (!fetch.Success)
+        {
+            // A force-pushed PR (rebased or amended) is not a fast-forward. The pr-N
+            // branch exists only to review this PR, so point it at the current head
+            // rather than leaving the user stuck -- and say so in the result.
+            if (!IsNonFastForward(fetch.Message))
+                return fetch;
+
+            var forced = await RunAsync(
+                workingDirectory, ct, "fetch", "origin", $"+{pr.RemoteRef}:refs/heads/{branch}");
+            if (!forced.Success)
+                return forced;
+
+            reset = true;
+        }
+
+        var checkout = await RunAsync(workingDirectory, ct, "checkout", branch);
+        if (!checkout.Success)
+            return checkout;
+
+        return new GitCommandResult(true, reset
+            ? $"Checked out PR #{pr.Number}; {branch} was reset to its force-pushed head."
+            : $"Checked out PR #{pr.Number} as {branch}.");
+    }
+
+    /// <summary>Recognizes Git's refusal to move a ref backwards or sideways.</summary>
+    private static bool IsNonFastForward(string message) =>
+        message.Contains("non-fast-forward", StringComparison.OrdinalIgnoreCase) ||
+        message.Contains("not a fast-forward", StringComparison.OrdinalIgnoreCase);
 
     private static async Task<GitCommandResult> RunAsync(
         string workingDirectory, CancellationToken ct, params string[] args)

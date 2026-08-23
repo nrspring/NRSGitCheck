@@ -43,6 +43,7 @@ public partial class MainWindow : Window
         {
             _vm.FocusFilterRequested -= FocusFilter;
             _vm.AutoRefreshConfigChanged -= ConfigureAutoRefresh;
+            _vm.PullRequestInputRequested -= FocusPullRequestBox;
         }
 
         _vm = DataContext as MainWindowViewModel;
@@ -51,6 +52,7 @@ public partial class MainWindow : Window
         {
             _vm.FocusFilterRequested += FocusFilter;
             _vm.AutoRefreshConfigChanged += ConfigureAutoRefresh;
+            _vm.PullRequestInputRequested += FocusPullRequestBox;
         }
 
         ConfigureAutoRefresh();
@@ -80,6 +82,10 @@ public partial class MainWindow : Window
 
     private void FocusFilter() => this.FindControl<TextBox>("FilterBox")?.Focus();
 
+    /// <summary>Focuses the modal's box after a layout pass, once it is actually visible.</summary>
+    private void FocusPullRequestBox() => Dispatcher.UIThread.Post(
+        () => this.FindControl<TextBox>("PullRequestBox")?.Focus(), DispatcherPriority.Input);
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
@@ -90,7 +96,16 @@ public partial class MainWindow : Window
         var alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
         var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
 
+        if (e.Key == Key.Escape && vm.IsPullRequestDialogVisible)
+        {
+            vm.ClosePullRequestDialogCommand.Execute(null); e.Handled = true; return;
+        }
         if (e.Key == Key.Escape && vm.IsHelpVisible) { vm.CloseHelpCommand.Execute(null); e.Handled = true; return; }
+
+        // The modal owns the keyboard while it is up; bare-key shortcuts would
+        // otherwise fire underneath it.
+        if (vm.IsPullRequestDialogVisible)
+            return;
 
         // Modifier / function shortcuts work regardless of focus.
         if (ctrl && e.Key == Key.O) { vm.OpenRepositoryCommand.Execute(null); e.Handled = true; return; }

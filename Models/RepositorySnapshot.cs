@@ -20,4 +20,5 @@ public sealed record RepositorySnapshot(
     IReadOnlyList<BranchInfo> LocalBranches,
     string? DefaultParentBranch,
     string? MainBranch,
-    bool HasRemote);
+    bool HasRemote,
+    string? OriginUrl);

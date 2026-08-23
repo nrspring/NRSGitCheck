@@ -125,7 +125,8 @@ public sealed class FileNavigationTests : IDisposable
 
         public RepositorySnapshot OpenRepository(string path) => new(
             _dir, "repo", "feature", false, false, "abc1234",
-            new[] { new BranchInfo("main", "sha", "sha", false) }, "main", "main", false);
+            new[] { new BranchInfo("main", "sha", "sha", false) }, "main", "main", false,
+            "https://github.com/owner/repo.git");
 
         public ResolvedComparison ResolveComparison(
             ComparisonMode mode, string? otherBranch, string? parentBranch, string? commitSha = null) =>
@@ -154,6 +155,11 @@ public sealed class FileNavigationTests : IDisposable
         public Task<GitCommandResult> PullMainAsync(
             string workingDirectory, string? mainBranch, string? currentBranch, CancellationToken ct = default) =>
             Task.FromResult(new GitCommandResult(true, "up to date"));
+
+        public Task<GitCommandResult> CheckoutPullRequestAsync(
+            string workingDirectory, PullRequestReference pr, string? currentBranch,
+            CancellationToken ct = default) =>
+            Task.FromResult(new GitCommandResult(true, $"checked out pr-{pr.Number}"));
     }
 
     private sealed class StubFolderPicker : IFolderPickerService

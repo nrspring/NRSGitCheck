@@ -412,10 +412,12 @@ public sealed class GitService : IGitService, IDisposable
 
         var parent = DetectDefaultParent(repo, currentBranch, locals);
         var main = DetectMainBranch(repo)?.FriendlyName;
-        var hasRemote = repo.Network.Remotes.Any();
+        var origin = repo.Network.Remotes["origin"] ?? repo.Network.Remotes.FirstOrDefault();
+        var hasRemote = origin is not null;
 
         return new RepositorySnapshot(
-            workdir, name, currentBranch, isDetached, isUnborn, headShort, locals, parent, main, hasRemote);
+            workdir, name, currentBranch, isDetached, isUnborn, headShort, locals, parent,
+            main, hasRemote, origin?.Url);
     }
 
     /// <summary>

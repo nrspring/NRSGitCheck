@@ -20,6 +20,9 @@ itself is checked out.
 - **Commit picker** — a dropdown of the commits on your branch (newest first, back to
   the branch point) so you can widen the diff one commit at a time.
 - **Pull main** — fetch and fast-forward `main` without leaving your feature branch.
+- **Review a pull request** — paste a PR link, and it is fetched onto a local
+  `pr-N` branch, checked out, and compared against `main` — the same diff GitHub
+  shows on the PR's Files-changed tab.
 - **Side-by-side and inline diffs** — toggle layouts instantly. Side-by-side panes are
   equal-width, each with their own horizontal scrollbar, and scroll in sync.
 - **Syntax highlighting** for the diffed file (TextMate grammars), layered with
@@ -95,6 +98,10 @@ dotnet test
 5. Press **Pull *main*** to fetch and fast-forward your main branch. When main isn't
    checked out this only moves the branch ref, so your working tree is untouched; if
    main has diverged the pull is refused rather than merged or rebased.
+6. Press **Review PR…** and paste a pull request link (or just its number) to fetch
+   it onto a local `pr-N` branch and switch to it. Your working tree must be clean,
+   since checking out the PR replaces it. A link belonging to a different repository
+   is rejected rather than fetched into this one.
 
 ### Keyboard shortcuts
 
