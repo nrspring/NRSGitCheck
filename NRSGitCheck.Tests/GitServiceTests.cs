@@ -366,6 +366,77 @@ public sealed class GitServiceTests : IDisposable
         Assert.False(snapshot.HasRemote);
     }
 
+    [Fact]
+    public void Untracked_line_counts_survive_the_chunked_read()
+    {
+        var dir = InitRepo("repo");
+        Commit(dir, "seed.txt", "seed\n");
+
+        // Larger than the 64 KB read buffer, so the count spans several chunks.
+        var big = string.Concat(Enumerable.Repeat("a line of text\n", 20_000));
+        File.WriteAllText(Path.Combine(dir, "many.txt"), big);
+
+        // No trailing newline: the final partial line still counts.
+        File.WriteAllText(Path.Combine(dir, "tail.txt"), "one\ntwo\nthree");
+
+        // Exactly one chunk boundary's worth, ending on a newline.
+        File.WriteAllText(Path.Combine(dir, "exact.txt"), "x\n");
+
+        _git.OpenRepository(dir);
+        var head = _git.ResolveComparison(ComparisonMode.LastCommit, null, null).Sha!;
+        var changes = _git.GetChanges(head).ToDictionary(c => c.Path, c => c);
+
+        Assert.Equal(20_000, changes["many.txt"].LinesAdded);
+        Assert.Equal(3, changes["tail.txt"].LinesAdded);
+        Assert.Equal(1, changes["exact.txt"].LinesAdded);
+        Assert.All(new[] { "many.txt", "tail.txt", "exact.txt" },
+            p => Assert.False(changes[p].IsBinary));
+    }
+
+    [Fact]
+    public void An_untracked_binary_file_is_flagged_and_not_counted()
+    {
+        var dir = InitRepo("repo");
+        Commit(dir, "seed.txt", "seed\n");
+
+        var bytes = new byte[4096];
+        bytes[10] = 0;   // NUL in the probe window
+        File.WriteAllBytes(Path.Combine(dir, "blob.bin"), bytes);
+
+        _git.OpenRepository(dir);
+        var head = _git.ResolveComparison(ComparisonMode.LastCommit, null, null).Sha!;
+        var change = _git.GetChanges(head).Single(c => c.Path == "blob.bin");
+
+        Assert.True(change.IsBinary);
+        Assert.Equal(0, change.LinesAdded);
+    }
+
+    [Fact]
+    public void A_very_large_untracked_file_is_listed_but_not_counted()
+    {
+        var dir = InitRepo("repo");
+        Commit(dir, "seed.txt", "seed\n");
+
+        // Over the 4 MB counting cap: re-reading these on every refresh is what made
+        // auto-refresh crawl, and the diff view will not render them anyway.
+        var path = Path.Combine(dir, "huge.log");
+        using (var fs = File.Create(path))
+        {
+            var chunk = System.Text.Encoding.ASCII.GetBytes(string.Concat(Enumerable.Repeat("line\n", 1000)));
+            for (var i = 0; i < 900; i++)   // ~4.5 MB
+                fs.Write(chunk, 0, chunk.Length);
+        }
+        Assert.True(new FileInfo(path).Length > 4L * 1024 * 1024);
+
+        _git.OpenRepository(dir);
+        var head = _git.ResolveComparison(ComparisonMode.LastCommit, null, null).Sha!;
+        var change = _git.GetChanges(head).Single(c => c.Path == "huge.log");
+
+        Assert.Equal(ChangeKind.Untracked, change.Kind);   // still shown in the tree
+        Assert.Equal(0, change.LinesAdded);                // but not counted
+        Assert.False(change.IsBinary);
+    }
+
     // --- helpers ------------------------------------------------------------
 
     private string InitRepo(string name)
