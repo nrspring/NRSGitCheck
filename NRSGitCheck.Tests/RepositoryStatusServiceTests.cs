@@ -134,6 +134,41 @@ public sealed class RepositoryStatusServiceTests : IDisposable
     }
 
     [Fact]
+    public void A_repo_checked_out_on_master_counts_as_on_main_even_when_main_also_exists()
+    {
+        // Both branches present, master checked out. Detection alone prefers "main",
+        // which would wrongly exclude this repo from the bulk pull.
+        var dir = InitRepo("both");
+        Commit(dir, "a.txt", "one");
+        RenameCurrentBranch(dir, "master");
+
+        using (var repo = new Repository(dir))
+            repo.CreateBranch("main");
+
+        var status = _service.Read(dir);
+
+        Assert.Equal("master", status.CurrentBranch);
+        Assert.Equal("master", status.MainBranch);
+        Assert.True(status.IsOnMainBranch);
+    }
+
+    [Fact]
+    public void A_repo_on_a_feature_branch_still_falls_back_to_the_detected_main()
+    {
+        var dir = InitRepo("feature-side");
+        Commit(dir, "a.txt", "one");
+        RenameCurrentBranch(dir, "master");
+
+        using (var repo = new Repository(dir))
+            Commands.Checkout(repo, repo.CreateBranch("feature"));
+
+        var status = _service.Read(dir);
+
+        Assert.Equal("master", status.MainBranch);
+        Assert.False(status.IsOnMainBranch);
+    }
+
+    [Fact]
     public async Task ReadAll_preserves_the_order_it_was_given()
     {
         var first = InitRepo("first");

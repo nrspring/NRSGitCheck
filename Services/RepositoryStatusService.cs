@@ -100,6 +100,14 @@ public sealed class RepositoryStatusService : IRepositoryStatusService
         var behind = hasUpstream ? head.TrackingDetails.BehindBy ?? 0 : 0;
 
         var main = MainBranchDetector.Detect(repo)?.FriendlyName;
+
+        // A repository sitting on main *or* master is on its own integration branch,
+        // whichever one the detector would otherwise have preferred. Without this, a
+        // repo that has both branches and is checked out on master looks like it is
+        // on a feature branch, and the bulk pull skips it.
+        if (!isDetached && !isUnborn && MainBranchDetector.IsIntegrationBranchName(branch))
+            main = branch;
+
         var hasRemote = repo.Network.Remotes.Any();
 
         return new UiRepositoryStatus(

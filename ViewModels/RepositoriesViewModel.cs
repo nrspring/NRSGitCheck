@@ -208,9 +208,10 @@ public partial class RepositoriesViewModel : ViewModelBase
         !IsBusy && Repositories.Any(r => r.IsValid && r.IsOnMainBranch);
 
     /// <summary>
-    /// Pulls main in every repository that currently has main checked out. Repos on
-    /// a feature branch are skipped rather than switched. The pulls run one after
-    /// another so credential prompts and progress stay comprehensible.
+    /// Pulls the integration branch in every repository that currently has main —
+    /// or master — checked out. Repos on a feature branch are skipped rather than
+    /// switched. The pulls run one after another so credential prompts and progress
+    /// stay comprehensible.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanPullAllOnMain))]
     private async Task PullAllOnMain()
@@ -220,7 +221,7 @@ public partial class RepositoriesViewModel : ViewModelBase
             return;
 
         ErrorMessage = null;
-        BeginOperation($"Pulling main in {targets.Count} repositories…");
+        BeginOperation($"Pulling {targets.Count} repositories on their main branch…");
         try
         {
             var succeeded = 0;
@@ -236,7 +237,7 @@ public partial class RepositoriesViewModel : ViewModelBase
             }
 
             Status = failures.Count == 0
-                ? $"Pulled {succeeded} of {targets.Count} repositories on main."
+                ? $"Pulled {succeeded} of {targets.Count} repositories on their main branch."
                 : $"Pulled {succeeded} of {targets.Count}; {failures.Count} failed.";
 
             if (failures.Count > 0)

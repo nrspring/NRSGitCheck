@@ -24,7 +24,7 @@
           <Button Content="Refresh" Command="{Binding RefreshAllCommand}" />
 
           <Button Command="{Binding PullAllOnMainCommand}"
-                  ToolTip.Tip="Fast-forward main in every repository that currently has main checked out. Repositories on a feature branch are skipped.">
+                  ToolTip.Tip="Fast-forward the integration branch in every repository that currently has main (or master) checked out. Repositories on a feature branch are skipped.">
             <TextBlock Text="Pull all on main" />
           </Button>
 
@@ -56,8 +56,8 @@
                    Text="Add the repositories you work in and this tab will show each one's branch, whether it has uncommitted changes, and whether it has commits you haven't pushed." />
       </StackPanel>
 
-      <ScrollViewer IsVisible="{Binding HasRepositories}" Padding="16,12">
-        <ItemsControl ItemsSource="{Binding Repositories}">
+      <ScrollViewer IsVisible="{Binding HasRepositories}">
+        <ItemsControl ItemsSource="{Binding Repositories}" Margin="16,12,16,20">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:TrackedRepositoryViewModel">
 
