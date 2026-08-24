@@ -13,7 +13,8 @@ namespace NRSGitCheck.ViewModels;
 /// <summary>
 /// The create-branch dialog. With a pattern configured it shows one field per
 /// <c>{Token}</c>, each seeded from that token's expression and editable; without one
-/// it just asks for a branch name. Creating checks the new branch out.
+/// it just asks for a branch name. Creating checks the new branch out in every
+/// targeted repository, so the same feature branch can be cut across several at once.
 /// </summary>
 public partial class NewBranchViewModel : ViewModelBase
 {
@@ -21,8 +22,8 @@ public partial class NewBranchViewModel : ViewModelBase
     private readonly IExpressionEvaluator _evaluator;
     private readonly IGitCommandService _gitCommands;
 
-    /// <summary>The row the branch is being created in.</summary>
-    private TrackedRepositoryViewModel? _target;
+    /// <summary>The rows the branch is being created in.</summary>
+    private IReadOnlyList<TrackedRepositoryViewModel> _targets = Array.Empty<TrackedRepositoryViewModel>();
 
     public NewBranchViewModel(
         ISettingsService settings,
@@ -38,13 +39,20 @@ public partial class NewBranchViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isVisible;
 
-    /// <summary>The repository the branch will be created in.</summary>
+    /// <summary>The repository the branch will be created in, or a count when there are several.</summary>
     [ObservableProperty]
     private string _repositoryName = string.Empty;
 
-    /// <summary>The branch the new one will be cut from.</summary>
+    /// <summary>The branch the new one will be cut from. Only meaningful for a single target.</summary>
     [ObservableProperty]
     private string _sourceBranch = string.Empty;
+
+    /// <summary>Whether more than one repository is targeted — the header switches to a list.</summary>
+    [ObservableProperty]
+    private bool _hasMultipleTargets;
+
+    /// <summary>One row per targeted repository, each with the branch it starts from.</summary>
+    public ObservableCollection<NewBranchTargetViewModel> Targets { get; } = new();
 
     /// <summary>The configured pattern, shown as a reminder of the shape being filled in.</summary>
     [ObservableProperty]
@@ -73,15 +81,18 @@ public partial class NewBranchViewModel : ViewModelBase
     partial void OnIsBusyChanged(bool value) => CreateCommand.NotifyCanExecuteChanged();
 
     /// <summary>
-    /// Opens the dialog for a repository, evaluating each token's default expression
-    /// to seed its field. An expression that fails leaves its field empty and says why,
-    /// rather than blocking the whole dialog.
+    /// Opens the dialog for one or more repositories, evaluating each token's default
+    /// expression to seed its field. An expression that fails leaves its field empty
+    /// and says why, rather than blocking the whole dialog. The pattern's tokens are
+    /// shared across every target — only per-repository state (name, current branch)
+    /// varies.
     /// </summary>
-    public async Task OpenAsync(TrackedRepositoryViewModel repository)
+    public async Task OpenAsync(IReadOnlyList<TrackedRepositoryViewModel> repositories)
     {
-        _target = repository;
-        RepositoryName = repository.Name;
-        SourceBranch = repository.CurrentBranch;
+        if (repositories.Count == 0)
+            return;
+
+        SetTargets(repositories);
         Error = null;
         IsBusy = false;
 
@@ -117,42 +128,95 @@ public partial class NewBranchViewModel : ViewModelBase
         UpdateBranchName();
     }
 
+    /// <summary>Refreshes the header and target list from the current set of targets.</summary>
+    private void SetTargets(IReadOnlyList<TrackedRepositoryViewModel> repositories)
+    {
+        _targets = repositories;
+        HasMultipleTargets = repositories.Count > 1;
+        RepositoryName = repositories.Count == 1 ? repositories[0].Name : $"{repositories.Count} repositories";
+        SourceBranch = repositories.Count == 1 ? repositories[0].CurrentBranch : string.Empty;
+
+        Targets.Clear();
+        foreach (var repo in repositories)
+            Targets.Add(new NewBranchTargetViewModel(repo.Name, repo.CurrentBranch));
+    }
+
     [RelayCommand]
     private void Cancel()
     {
         IsVisible = false;
-        _target = null;
+        _targets = Array.Empty<TrackedRepositoryViewModel>();
+        Targets.Clear();
     }
 
-    private bool CanCreate() => !IsBusy && !string.IsNullOrWhiteSpace(BranchName);
+    private bool CanCreate() => !IsBusy && !string.IsNullOrWhiteSpace(BranchName) && _targets.Count > 0;
 
     /// <summary>
-    /// Creates the branch and checks it out. Git validates the name, so a duplicate or
-    /// an illegal ref comes back as a message in the dialog rather than a silent failure.
+    /// Creates the branch and checks it out in every targeted repository, one after
+    /// another so credential prompts stay comprehensible. Git validates the name, so
+    /// a duplicate or an illegal ref comes back as a per-repository failure rather
+    /// than aborting the rest. When every target succeeds the dialog closes; when any
+    /// fail it stays open, narrowed to just the repositories still needing the branch,
+    /// so fixing the name and retrying does not try to recreate ones that already
+    /// have it.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanCreate))]
     private async Task Create()
     {
-        if (_target is not { } repository)
+        if (_targets.Count == 0)
             return;
 
         var name = BranchName.Trim();
+        var total = _targets.Count;
         Error = null;
         IsBusy = true;
         try
         {
-            var result = await _gitCommands.CreateBranchAsync(repository.Path, name);
-            if (!result.Success)
+            var succeeded = new List<TrackedRepositoryViewModel>();
+            var failures = new List<(TrackedRepositoryViewModel Repo, string Message)>();
+
+            foreach (var repo in _targets)
             {
-                Error = result.Message;
+                var result = await _gitCommands.CreateBranchAsync(repo.Path, name);
+                if (result.Success)
+                {
+                    succeeded.Add(repo);
+                    await repo.RefreshAsync();
+                }
+                else
+                {
+                    failures.Add((repo, result.Message));
+                }
+            }
+
+            // The dialog is about to lose track of these; a repo that got the branch
+            // no longer belongs in a "still selected for a bulk branch" state.
+            foreach (var repo in succeeded)
+                repo.IsSelected = false;
+
+            if (succeeded.Count > 0)
+            {
+                Created?.Invoke(succeeded.Count == 1
+                    ? $"{succeeded[0].Name}: created {name}."
+                    : $"Created {name} in {succeeded.Count} of {total} repositories.");
+            }
+
+            if (failures.Count == 0)
+            {
+                IsVisible = false;
+                _targets = Array.Empty<TrackedRepositoryViewModel>();
+                Targets.Clear();
                 return;
             }
 
-            await repository.RefreshAsync();
-            Created?.Invoke($"{repository.Name}: {result.Message}");
+            SetTargets(failures.Select(f => f.Repo).ToList());
+            Error = failures.Count == 1
+                ? failures[0].Message
+                : string.Join(Environment.NewLine, failures.Select(f => $"{f.Repo.Name}: {f.Message}"));
 
-            IsVisible = false;
-            _target = null;
+            Failed?.Invoke(succeeded.Count == 0
+                ? $"Could not create {name} in {(failures.Count == 1 ? failures[0].Repo.Name : $"{failures.Count} repositories")}."
+                : $"{failures.Count} of {total} repositories failed.");
         }
         catch (Exception ex)
         {
@@ -164,8 +228,11 @@ public partial class NewBranchViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Raised with a status message once a branch has been created.</summary>
+    /// <summary>Raised with a status message once the branch has been created somewhere.</summary>
     public event Action<string>? Created;
+
+    /// <summary>Raised with a summary when creation failed in at least one repository.</summary>
+    public event Action<string>? Failed;
 
     private void UpdateBranchName() =>
         BranchName = BranchPattern.Build(

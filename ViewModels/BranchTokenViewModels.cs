@@ -117,3 +117,10 @@ public partial class BranchTokenDefaultViewModel : ViewModelBase
         }
     }
 }
+
+/// <summary>
+/// One repository targeted by the create-branch dialog, shown when more than one
+/// is selected — each can be sitting on a different branch, so the dialog lists
+/// where each new branch will start from rather than assuming they match.
+/// </summary>
+public sealed record NewBranchTargetViewModel(string Name, string Branch);

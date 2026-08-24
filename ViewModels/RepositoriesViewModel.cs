@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -45,6 +46,7 @@ public partial class RepositoriesViewModel : ViewModelBase
 
         NewBranch = new NewBranchViewModel(settings, evaluator, gitCommands);
         NewBranch.Created += OnBranchCreated;
+        NewBranch.Failed += OnBranchFailed;
         BranchPattern = new BranchPatternViewModel(settings, evaluator);
 
         foreach (var tracked in _settings.Settings.TrackedRepositories)
@@ -59,9 +61,9 @@ public partial class RepositoriesViewModel : ViewModelBase
     /// <summary>The branch-pattern settings dialog.</summary>
     public BranchPatternViewModel BranchPattern { get; }
 
-    /// <summary>Opens the create-branch dialog for one repository.</summary>
-    public void BeginNewBranch(TrackedRepositoryViewModel repository) =>
-        _ = NewBranch.OpenAsync(repository);
+    /// <summary>Opens the create-branch dialog for one or more repositories.</summary>
+    public void BeginNewBranch(IReadOnlyList<TrackedRepositoryViewModel> repositories) =>
+        _ = NewBranch.OpenAsync(repositories);
 
     [RelayCommand]
     private void EditBranchPattern() => BranchPattern.Open();
@@ -70,6 +72,48 @@ public partial class RepositoriesViewModel : ViewModelBase
     {
         Report(message);
         NotifyBulkCommands();
+    }
+
+    private void OnBranchFailed(string message)
+    {
+        ReportError(message);
+        NotifyBulkCommands();
+    }
+
+    // --- Bulk selection -------------------------------------------------------
+
+    /// <summary>How many repositories are checked for a bulk action.</summary>
+    public int SelectedCount => Repositories.Count(r => r.IsSelected);
+
+    /// <summary>Whether at least one repository is checked.</summary>
+    public bool HasSelection => SelectedCount > 0;
+
+    /// <summary>Label for the toolbar's bulk "New branch" button, reflecting the current count.</summary>
+    public string NewBranchSelectedLabel => SelectedCount switch
+    {
+        0 => "New branch for selected…",
+        1 => "New branch for 1 repository…",
+        _ => $"New branch for {SelectedCount} repositories…",
+    };
+
+    /// <summary>Called by a row when its checkbox changes, to refresh the bulk button.</summary>
+    public void NotifySelectionChanged()
+    {
+        OnPropertyChanged(nameof(SelectedCount));
+        OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(NewBranchSelectedLabel));
+        NewBranchForSelectedCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanCreateBranchForSelected() => !IsBusy && HasSelection;
+
+    /// <summary>Opens the create-branch dialog for every checked repository at once.</summary>
+    [RelayCommand(CanExecute = nameof(CanCreateBranchForSelected))]
+    private void NewBranchForSelected()
+    {
+        var targets = Repositories.Where(r => r.IsSelected && r.IsValid).ToList();
+        if (targets.Count > 0)
+            BeginNewBranch(targets);
     }
 
     /// <summary>The pinned repositories, in the order they were added.</summary>
@@ -225,6 +269,7 @@ public partial class RepositoriesViewModel : ViewModelBase
             ? SummarizeList()
             : "Add the repositories you want to keep an eye on.";
         NotifyBulkCommands();
+        NotifySelectionChanged();
     }
 
     // --- Bulk pull ----------------------------------------------------------
@@ -317,5 +362,6 @@ public partial class RepositoriesViewModel : ViewModelBase
         AddRepositoryCommand.NotifyCanExecuteChanged();
         RefreshAllCommand.NotifyCanExecuteChanged();
         PullAllOnMainCommand.NotifyCanExecuteChanged();
+        NewBranchForSelectedCommand.NotifyCanExecuteChanged();
     }
 }

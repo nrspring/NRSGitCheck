@@ -45,6 +45,15 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
     [ObservableProperty]
     private string _name;
 
+    /// <summary>
+    /// Checked in the row's checkbox to include this repository in a bulk action —
+    /// currently, creating the same branch across several repositories at once.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isSelected;
+
+    partial void OnIsSelectedChanged(bool value) => _owner.NotifySelectionChanged();
+
     // --- Status -------------------------------------------------------------
 
     /// <summary>The last status read, or null until the first refresh completes.</summary>
@@ -128,6 +137,11 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
             IsValid = status.IsValid;
             Error = status.Error;
             CurrentBranch = status.IsValid ? status.CurrentBranch : string.Empty;
+
+            // An invalid repository can't take a branch; drop it out of any bulk
+            // selection rather than leaving a dead checkbox checked.
+            if (!status.IsValid)
+                IsSelected = false;
 
             LocalBranches.Clear();
             foreach (var branch in status.LocalBranches)
@@ -283,9 +297,9 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
 
     private bool CanCreateBranch() => !IsBusy && IsValid;
 
-    /// <summary>Opens the create-branch dialog for this repository.</summary>
+    /// <summary>Opens the create-branch dialog for just this repository.</summary>
     [RelayCommand(CanExecute = nameof(CanCreateBranch))]
-    private void NewBranch() => _owner.BeginNewBranch(this);
+    private void NewBranch() => _owner.BeginNewBranch(new[] { this });
 
     [RelayCommand]
     private Task Refresh() => RefreshAsync();

@@ -33,6 +33,10 @@
                   Command="{Binding EditBranchPatternCommand}"
                   ToolTip.Tip="Define the {Token} pattern new branch names are built from, and the expression that fills each token" />
 
+          <Button Content="{Binding NewBranchSelectedLabel}"
+                  Command="{Binding NewBranchForSelectedCommand}"
+                  ToolTip.Tip="Create the same branch in every repository checked below" />
+
           <ProgressBar IsIndeterminate="True"
                        IsVisible="{Binding IsBusy}"
                        Width="110" Height="4"
@@ -68,10 +72,20 @@
 
               <Border Classes="card" Margin="0,0,0,10" Padding="16,14">
 
-                <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
+                <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*,Auto">
+
+                  <!-- Included in a bulk action (currently: creating a branch across
+                       several repositories at once). Cleared automatically if the
+                       repository becomes unreadable. -->
+                  <CheckBox Grid.Row="0" Grid.RowSpan="2" Grid.Column="0"
+                            IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                            IsEnabled="{Binding IsValid}"
+                            VerticalAlignment="Top"
+                            Margin="0,2,10,0"
+                            ToolTip.Tip="Include this repository the next time you create a branch across several at once" />
 
                   <!-- Identity -->
-                  <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                  <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2">
                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="15" />
 
                     <StackPanel Orientation="Horizontal" Spacing="4">
@@ -103,7 +117,7 @@
                   </StackPanel>
 
                   <!-- Stop tracking. Removes the entry here only; nothing on disk is touched. -->
-                  <Button Grid.Row="0" Grid.Column="1"
+                  <Button Grid.Row="0" Grid.Column="2"
                           Classes="ghost"
                           Content="✕"
                           Command="{Binding RemoveCommand}"
@@ -113,7 +127,7 @@
                           ToolTip.Tip="Remove from this list (the repository itself is left alone)" />
 
                   <!-- Unreadable repository: say why, and offer nothing that would fail. -->
-                  <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                  <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
                              Margin="0,10,0,0"
                              IsVisible="{Binding !IsValid}"
                              Text="{Binding Error}"
@@ -122,7 +136,7 @@
                              TextWrapping="Wrap" />
 
                   <!-- Branch, state, actions -->
-                  <Grid Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                  <Grid Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
                         Margin="0,10,0,0"
                         IsVisible="{Binding IsValid}"
                         ColumnDefinitions="Auto,*,Auto">
@@ -199,11 +213,30 @@
 
         <StackPanel Spacing="3">
           <TextBlock Text="New branch" FontSize="18" FontWeight="SemiBold" />
-          <StackPanel Orientation="Horizontal" Spacing="5">
+
+          <!-- One target: the familiar single-line "in X from Y". -->
+          <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding !HasMultipleTargets}">
             <TextBlock Text="in" Opacity="0.6" />
             <TextBlock Text="{Binding RepositoryName}" FontWeight="SemiBold" />
             <TextBlock Text="from" Opacity="0.6" />
             <TextBlock Text="{Binding SourceBranch}" FontFamily="Cascadia Code,Consolas,monospace" />
+          </StackPanel>
+
+          <!-- Several targets: each can be sitting on a different branch, so list them. -->
+          <StackPanel Spacing="4" IsVisible="{Binding HasMultipleTargets}" Margin="0,4,0,0">
+            <TextBlock Text="in:" Opacity="0.6" />
+            <ItemsControl ItemsSource="{Binding Targets}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:NewBranchTargetViewModel">
+                  <StackPanel Orientation="Horizontal" Spacing="5" Margin="10,1,0,0">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" />
+                    <TextBlock Text="from" Opacity="0.6" FontSize="12" />
+                    <TextBlock Text="{Binding Branch}" FontSize="12"
+                               FontFamily="Cascadia Code,Consolas,monospace" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
           </StackPanel>
         </StackPanel>
 
