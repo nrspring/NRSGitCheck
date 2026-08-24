@@ -74,7 +74,7 @@ public partial class DiffView : UserControl
     private ScrollViewer? FindScrollViewer(string name) =>
         this.FindControl<ListBox>(name)?.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
 
-    private void OnScrollToRequested(object row)
+    private void OnScrollToRequested(SectionAnchor section)
     {
         // Defer so the ListBox has realized the (possibly just-changed) items.
         Dispatcher.UIThread.Post(() =>
@@ -84,18 +84,25 @@ public partial class DiffView : UserControl
             if (list is null)
                 return;
 
-            // ScrollIntoView stops as soon as the item is on screen, which parks a
-            // change on the very bottom edge when moving forwards. Bring a few rows
-            // *past* it into view first; the second call is then a no-op going down,
-            // and still guarantees the change is visible when coming back up.
+            // Reveal the end of the change first, then its start. ScrollIntoView moves
+            // the least it can, so this lands the whole section on screen when it fits;
+            // when it is taller than the viewport the second call wins and pins the
+            // start, because reading a change from its first line matters more.
             if (list.ItemsSource is IList rows)
             {
-                var index = rows.IndexOf(row);
-                if (index >= 0)
-                    list.ScrollIntoView(DiffViewModel.TrailingContextRow(index, rows.Count));
+                var end = rows.IndexOf(section.End);
+                if (end >= 0)
+                    list.ScrollIntoView(DiffViewModel.TrailingContextRow(end, rows.Count));
+
+                var start = rows.IndexOf(section.Start);
+                if (start >= 0)
+                {
+                    list.ScrollIntoView(start);
+                    return;
+                }
             }
 
-            list.ScrollIntoView(row);
+            list.ScrollIntoView(section.Start);
         }, DispatcherPriority.Background);
     }
 }

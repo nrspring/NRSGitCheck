@@ -188,8 +188,8 @@ public sealed class DiffViewModelTests
     }
 
     [Theory]
-    [InlineData(10, 100, 16)]   // room below: the change gets its trailing context
-    [InlineData(97, 100, 99)]   // near the end: scroll as far as the file allows
+    [InlineData(10, 100, 13)]   // room below: the change gets its trailing context
+    [InlineData(98, 100, 99)]   // near the end: scroll as far as the file allows
     [InlineData(99, 100, 99)]   // last row: nothing left to reveal
     [InlineData(0, 1, 0)]       // single row
     public void Scrolling_to_a_change_reveals_rows_past_it(int index, int rowCount, int expected)
@@ -202,4 +202,70 @@ public sealed class DiffViewModelTests
     {
         Assert.Equal(-1, DiffViewModel.TrailingContextRow(0, 0));
     }
+
+    [Fact]
+    public async Task A_multi_line_change_is_anchored_over_its_whole_extent()
+    {
+        // Three consecutive edited lines are one section: scrolling to it has to
+        // account for its last line, not just the first.
+        var vm = new DiffViewModel(
+            new StubDiff(DiffEngine.Compute(
+                Lines("a", "b", "c", "d", "e", "f", "g"),
+                Lines("a", "B", "C", "D", "e", "f", "g"))),
+            new StubSettings());
+        vm.Layout = DiffLayout.Inline;
+
+        SectionAnchor? section = null;
+        vm.ScrollToRequested += a => section = a;
+        await vm.LoadAsync("base", Change());
+
+        Assert.NotNull(section);
+
+        var rows = vm.InlineRows.ToList();
+        var start = rows.IndexOf(section!.Start);
+        var end = rows.IndexOf(section.End);
+
+        Assert.True(start >= 0 && end > start);              // the section spans rows
+        Assert.All(rows.GetRange(start, end - start + 1),
+            r => Assert.NotEqual(DiffLineKind.Context, ((InlineDiffRow)r).Kind));
+        Assert.Equal(DiffLineKind.Context, ((InlineDiffRow)rows[end + 1]).Kind);   // ends where context resumes
+    }
+
+    [Fact]
+    public async Task A_single_line_change_anchors_start_and_end_to_the_same_row()
+    {
+        var vm = new DiffViewModel(
+            new StubDiff(DiffEngine.Compute(Lines("a", "b", "c"), Lines("a", "B", "c"))),
+            new StubSettings());
+
+        SectionAnchor? section = null;
+        vm.ScrollToRequested += a => section = a;
+        await vm.LoadAsync("base", Change());
+
+        Assert.NotNull(section);
+        Assert.Same(section!.Start, section.End);
+    }
+
+    [Fact]
+    public async Task Side_by_side_anchors_span_the_section_too()
+    {
+        var vm = new DiffViewModel(
+            new StubDiff(DiffEngine.Compute(
+                Lines("a", "b", "c", "d", "e"),
+                Lines("a", "B", "C", "d", "e"))),
+            new StubSettings());
+        vm.Layout = DiffLayout.SideBySide;
+
+        SectionAnchor? section = null;
+        vm.ScrollToRequested += a => section = a;
+        await vm.LoadAsync("base", Change());
+
+        Assert.NotNull(section);
+
+        var rows = vm.SideRows.ToList();
+        Assert.True(rows.IndexOf(section!.End) > rows.IndexOf(section.Start));
+    }
+
+    private static string Lines(params string[] lines) =>
+        string.Join((char)10, lines) + (char)10;
 }

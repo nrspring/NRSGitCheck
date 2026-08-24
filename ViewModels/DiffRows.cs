@@ -24,6 +24,25 @@ public sealed class RenderSegment
     public string? Foreground { get; }
 }
 
+/// <summary>
+/// One changed section of a file, as the rows that render it: <see cref="Start"/> is
+/// its first changed row and <see cref="End"/> its last. Navigation scrolls to the
+/// whole range rather than a single row, so a tall change is not left half off screen.
+/// </summary>
+public sealed class SectionAnchor
+{
+    public SectionAnchor(object start)
+    {
+        Start = start;
+        End = start;
+    }
+
+    public object Start { get; }
+
+    /// <summary>Extended as the section's rows are built; equal to <see cref="Start"/> for a one-line change.</summary>
+    public object End { get; internal set; }
+}
+
 /// <summary>Separator row carrying a hunk header (e.g. <c>@@ -1,4 +1,6 @@</c>).</summary>
 public sealed class HunkSeparatorRow
 {

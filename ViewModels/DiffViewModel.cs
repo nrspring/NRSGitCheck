@@ -30,12 +30,12 @@ public partial class DiffViewModel : ViewModelBase
     public ObservableCollection<object> InlineRows { get; } = new();
     public ObservableCollection<object> SideRows { get; } = new();
 
-    // Hunk anchors (the separator rows) per layout, for keyboard navigation (FR-24, FR-27).
-    private readonly List<object> _inlineAnchors = new();
-    private readonly List<object> _sideAnchors = new();
+    // Changed sections per layout, for keyboard navigation (FR-24, FR-27).
+    private readonly List<SectionAnchor> _inlineAnchors = new();
+    private readonly List<SectionAnchor> _sideAnchors = new();
     private int _currentHunkIndex = -1;
 
-    private List<object> ActiveAnchors => IsInline ? _inlineAnchors : _sideAnchors;
+    private List<SectionAnchor> ActiveAnchors => IsInline ? _inlineAnchors : _sideAnchors;
 
     /// <summary>How many changed sections the current layout has rendered so far.</summary>
     public int SectionCount => ActiveAnchors.Count;
@@ -51,8 +51,8 @@ public partial class DiffViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isLoading;
 
-    /// <summary>Raised to ask the view to scroll a row into view.</summary>
-    public event Action<object>? ScrollToRequested;
+    /// <summary>Raised to ask the view to bring a changed section into view.</summary>
+    public event Action<SectionAnchor>? ScrollToRequested;
 
     [ObservableProperty]
     private DiffLayout _layout;
@@ -122,11 +122,10 @@ public partial class DiffViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// How many rows are kept visible below a change when it is scrolled to. Landing a
-    /// change flush against the bottom edge makes it hard to read, because the lines it
-    /// affects are exactly the ones off screen.
+    /// How many rows are kept visible below a change when it is scrolled to, so the
+    /// last changed line does not sit flush against the bottom edge.
     /// </summary>
-    public const int TrailingContextRows = 6;
+    public const int TrailingContextRows = 3;
 
     /// <summary>
     /// The row to bring into view *before* the change itself, so the change ends up
@@ -203,8 +202,8 @@ public partial class DiffViewModel : ViewModelBase
     /// one per section, in document order, and the same count on both sides.
     /// </summary>
     private sealed record BuiltHunk(
-        List<object> InlineRows, List<object> InlineAnchors,
-        List<object> SideRows, List<object> SideAnchors);
+        List<object> InlineRows, List<SectionAnchor> InlineAnchors,
+        List<object> SideRows, List<SectionAnchor> SideAnchors);
 
     public async Task LoadAsync(string baseSha, FileChange change, HunkPosition position = HunkPosition.First)
     {
@@ -368,11 +367,14 @@ public partial class DiffViewModel : ViewModelBase
         lines[i].Kind != DiffLineKind.Context &&
         (i == 0 || lines[i - 1].Kind == DiffLineKind.Context);
 
-    private static (List<object> Rows, List<object> Anchors) BuildInlineHunk(DiffHunk hunk)
+    private static (List<object> Rows, List<SectionAnchor> Anchors) BuildInlineHunk(DiffHunk hunk)
     {
         var rows = new List<object>(hunk.Lines.Count + 1);
-        var anchors = new List<object>();
+        var anchors = new List<SectionAnchor>();
         rows.Add(new HunkSeparatorRow { Header = hunk.Header });
+
+        // The section currently being extended, so its End tracks the last changed row.
+        SectionAnchor? open = null;
 
         for (var i = 0; i < hunk.Lines.Count; i++)
         {
@@ -394,18 +396,33 @@ public partial class DiffViewModel : ViewModelBase
 
             // Anchor the change itself, not the hunk header: in whole-file mode the
             // header sits at the top of the file, nowhere near the edit.
-            if (StartsSection(hunk.Lines, i))
-                anchors.Add(row);
+            if (line.Kind == DiffLineKind.Context)
+            {
+                open = null;
+            }
+            else if (StartsSection(hunk.Lines, i))
+            {
+                open = new SectionAnchor(row);
+                anchors.Add(open);
+            }
+            else if (open is not null)
+            {
+                open.End = row;
+            }
         }
 
         return (rows, anchors);
     }
 
-    private static (List<object> Rows, List<object> Anchors) BuildSideHunk(DiffHunk hunk)
+    private static (List<object> Rows, List<SectionAnchor> Anchors) BuildSideHunk(DiffHunk hunk)
     {
         var rows = new List<object>(hunk.Lines.Count + 1);
-        var anchors = new List<object>();
+        var anchors = new List<SectionAnchor>();
         rows.Add(new HunkSeparatorRow { Header = hunk.Header });
+
+        // Survives across paired runs: two pairs with no context between them are one
+        // section, so the second pair extends the first pair's anchor.
+        SectionAnchor? open = null;
 
         var lines = hunk.Lines;
         var i = 0;
@@ -418,6 +435,7 @@ public partial class DiffViewModel : ViewModelBase
                     Left = Cell(lines[i], lines[i].OldLineNumber),
                     Right = Cell(lines[i], lines[i].NewLineNumber),
                 });
+                open = null;
                 i++;
                 continue;
             }
@@ -447,7 +465,14 @@ public partial class DiffViewModel : ViewModelBase
                 rows.Add(row);
 
                 if (opensSection && k == 0)
-                    anchors.Add(row);
+                {
+                    open = new SectionAnchor(row);
+                    anchors.Add(open);
+                }
+                else if (open is not null)
+                {
+                    open.End = row;
+                }
             }
         }
         return (rows, anchors);
