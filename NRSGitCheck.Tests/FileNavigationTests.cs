@@ -38,7 +38,7 @@ public sealed class FileNavigationTests : IDisposable
             new StubGit(_dir, "a.txt", "b.txt", "c.txt"),
             new StubGitCommands(),
             new StubFolderPicker(),
-            new DiffViewModel(new StubDiff(), settings),
+            new DiffViewModel(new StubDiff(), settings, new StubClipboard()),
             new StubTheme(),
             Repositories(settings));
     }
@@ -94,7 +94,7 @@ public sealed class FileNavigationTests : IDisposable
             new StubGit(_dir),                 // no changed files
             new StubGitCommands(),
             new StubFolderPicker(),
-            new DiffViewModel(new StubDiff(), settings),
+            new DiffViewModel(new StubDiff(), settings, new StubClipboard()),
             new StubTheme(),
             Repositories(settings));
 
@@ -244,7 +244,7 @@ public sealed class FileNavigationTests : IDisposable
         settings.Settings.ReopenLastRepoOnLaunch = true;
         settings.Settings.RecentRepositories.Add(new RecentRepository { Path = _dir, Name = "repo" });
 
-        var diff = new DiffViewModel(new StubMultiHunkDiff(), settings);
+        var diff = new DiffViewModel(new StubMultiHunkDiff(), settings, new StubClipboard());
         var vm = new MainWindowViewModel(
             settings, new StubGit(_dir, "a.txt", "b.txt"), new StubGitCommands(),
             new StubFolderPicker(), diff, new StubTheme(), Repositories(settings));
@@ -324,7 +324,7 @@ public sealed class FileNavigationTests : IDisposable
         settings.Settings.ReopenLastRepoOnLaunch = true;
         settings.Settings.RecentRepositories.Add(new RecentRepository { Path = _dir, Name = "repo" });
 
-        var diff = new DiffViewModel(new StubMultiHunkDiff(), settings);
+        var diff = new DiffViewModel(new StubMultiHunkDiff(), settings, new StubClipboard());
         var vm = new MainWindowViewModel(
             settings, new StubGit(_dir, files), new StubGitCommands(),
             new StubFolderPicker(), diff, new StubTheme(), Repositories(settings));

@@ -125,7 +125,7 @@ public sealed class ReturnToLocalTests : IDisposable
             new StubGit(_dir, branch, mainBranch),
             commands ?? new RecordingGitCommands(),
             new StubFolderPicker(),
-            new DiffViewModel(new StubDiff(), settings),
+            new DiffViewModel(new StubDiff(), settings, new StubClipboard()),
             new StubTheme(),
             new RepositoriesViewModel(
                 settings, new StubRepositoryStatus(), new RecordingGitCommands(),

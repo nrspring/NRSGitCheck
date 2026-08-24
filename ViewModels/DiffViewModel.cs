@@ -18,11 +18,13 @@ public partial class DiffViewModel : ViewModelBase
 {
     private readonly IDiffService _diff;
     private readonly ISettingsService _settings;
+    private readonly IClipboardService _clipboard;
 
-    public DiffViewModel(IDiffService diff, ISettingsService settings)
+    public DiffViewModel(IDiffService diff, ISettingsService settings, IClipboardService clipboard)
     {
         _diff = diff;
         _settings = settings;
+        _clipboard = clipboard;
         _layout = settings.Settings.LastDiffLayout;
         _showWholeFile = settings.Settings.ShowWholeFileDiff;
     }
@@ -50,6 +52,65 @@ public partial class DiffViewModel : ViewModelBase
     /// </summary>
     [ObservableProperty]
     private bool _isLoading;
+
+    // --- Copying selected lines ---------------------------------------------
+
+    /// <summary>Raised after lines are copied, with how many, so the shell can say so.</summary>
+    public event Action<int>? TextCopied;
+
+    /// <summary>
+    /// Turns selected diff rows into plain text: one line per row, gutters and +/-
+    /// markers dropped so the result pastes as code. Hunk headers are left out, and
+    /// a side-by-side row contributes only the pane it was selected in — an empty
+    /// filler cell on that side yields nothing at all rather than a blank line.
+    /// </summary>
+    public static string BuildCopyText(IEnumerable<object>? rows, DiffPane pane)
+    {
+        if (rows is null)
+            return string.Empty;
+
+        var lines = new List<string>();
+        foreach (var row in rows)
+        {
+            switch (row)
+            {
+                case InlineDiffRow inline:
+                    lines.Add(inline.Text);
+                    break;
+
+                case SideDiffRow side:
+                    var cell = pane == DiffPane.Right ? side.Right : side.Left;
+                    if (!cell.IsEmpty)
+                        lines.Add(cell.Text);
+                    break;
+
+                // Hunk headers are not code; skip them rather than paste "@@ -1,4 +1,6 @@".
+                default:
+                    break;
+            }
+        }
+
+        return lines.Count == 0 ? string.Empty : string.Join(Environment.NewLine, lines);
+    }
+
+    /// <summary>
+    /// Copies the selected rows to the clipboard. Returns how many lines were copied;
+    /// zero when the selection holds nothing copyable.
+    /// </summary>
+    public async Task<int> CopySelectionAsync(IEnumerable<object>? rows, DiffPane pane)
+    {
+        var materialized = rows?.ToList();
+        var text = BuildCopyText(materialized, pane);
+        if (text.Length == 0)
+            return 0;
+
+        if (!await _clipboard.SetTextAsync(text))
+            return 0;
+
+        var count = text.Split(Environment.NewLine).Length;
+        TextCopied?.Invoke(count);
+        return count;
+    }
 
     /// <summary>Raised to ask the view to bring a changed section into view.</summary>
     public event Action<SectionAnchor>? ScrollToRequested;

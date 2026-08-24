@@ -18,6 +18,7 @@ public static class KeyboardShortcuts
         new ShortcutInfo("Previous changed section", "P  ·  K  ·  Alt+↑"),
         new ShortcutInfo("Next file", "Ctrl+↓  ·  ]"),
         new ShortcutInfo("Previous file", "Ctrl+↑  ·  ["),
+        new ShortcutInfo("Copy selected diff lines", "Ctrl+C"),
         new ShortcutInfo("Toggle diff layout", "Ctrl+L"),
         new ShortcutInfo("Toggle theme", "Ctrl+T"),
         new ShortcutInfo("Open repository", "Ctrl+O"),

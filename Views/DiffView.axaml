@@ -28,16 +28,20 @@
     <Style Selector="ListBox.diff">
       <Setter Property="Padding" Value="0,0,0,18" />
     </Style>
-    <!-- Strip ListBox selection chrome; diff rows are read-only. -->
     <Style Selector="ListBox.diff > ListBoxItem">
       <Setter Property="Padding" Value="0" />
       <Setter Property="MinHeight" Value="0" />
     </Style>
+    <!-- Selected lines wash under the row's own add/remove tint, so a selected
+         change still reads as added or removed. -->
     <Style Selector="ListBox.diff > ListBoxItem:selected /template/ ContentPresenter">
-      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Background" Value="{DynamicResource AppSelection}" />
     </Style>
     <Style Selector="ListBox.diff > ListBoxItem:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.diff > ListBoxItem:selected:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AppSelection}" />
     </Style>
     <Style Selector="TextBlock.gutter">
       <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
@@ -86,12 +90,20 @@
       <!-- Inline / unified -->
       <ListBox Grid.Row="1"
                Name="InlineList"
+               SelectionMode="Multiple"
+               KeyDown="OnDiffListKeyDown"
                Classes="diff"
                ItemsSource="{Binding InlineRows}"
                Background="Transparent"
                BorderThickness="0"
                ScrollViewer.HorizontalScrollBarVisibility="Auto"
                IsVisible="{Binding IsInline}">
+        <ListBox.ContextMenu>
+          <ContextMenu>
+            <MenuItem Header="Copy" InputGesture="Ctrl+C" Click="OnCopyMenuClick" />
+          </ContextMenu>
+        </ListBox.ContextMenu>
+
         <ListBox.DataTemplates>
           <DataTemplate DataType="vm:HunkSeparatorRow">
             <Border Background="{DynamicResource AppChrome}" Padding="10,3">
@@ -120,11 +132,19 @@
 
         <ListBox Grid.Column="0"
                  Name="SideLeftList"
+                 SelectionMode="Multiple"
+                 KeyDown="OnDiffListKeyDown"
                  Classes="diff"
                  ItemsSource="{Binding SideRows}"
                  Background="Transparent"
                  BorderThickness="0"
                  ScrollViewer.HorizontalScrollBarVisibility="Auto">
+          <ListBox.ContextMenu>
+            <ContextMenu>
+              <MenuItem Header="Copy" InputGesture="Ctrl+C" Click="OnCopyMenuClick" />
+            </ContextMenu>
+          </ListBox.ContextMenu>
+
           <ListBox.DataTemplates>
             <DataTemplate DataType="vm:HunkSeparatorRow">
               <Border Background="{DynamicResource AppChrome}" Padding="10,3">
@@ -149,11 +169,19 @@
 
         <ListBox Grid.Column="2"
                  Name="SideRightList"
+                 SelectionMode="Multiple"
+                 KeyDown="OnDiffListKeyDown"
                  Classes="diff"
                  ItemsSource="{Binding SideRows}"
                  Background="Transparent"
                  BorderThickness="0"
                  ScrollViewer.HorizontalScrollBarVisibility="Auto">
+          <ListBox.ContextMenu>
+            <ContextMenu>
+              <MenuItem Header="Copy" InputGesture="Ctrl+C" Click="OnCopyMenuClick" />
+            </ContextMenu>
+          </ListBox.ContextMenu>
+
           <ListBox.DataTemplates>
             <DataTemplate DataType="vm:HunkSeparatorRow">
               <Border Background="{DynamicResource AppChrome}" Padding="10,3">

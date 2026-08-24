@@ -50,6 +50,9 @@ public partial class MainWindowViewModel : ViewModelBase
         // Re-render the open diff when the effective theme changes so syntax
         // colors switch with it (FR-20, FR-28).
         _themeService.EffectiveThemeChanged += OnEffectiveThemeChanged;
+
+        Diff.TextCopied += lines =>
+            Status = lines == 1 ? "Copied 1 line." : $"Copied {lines} lines.";
     }
 
     // --- Theme selection ----------------------------------------------------

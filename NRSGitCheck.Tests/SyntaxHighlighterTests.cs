@@ -15,6 +15,17 @@ namespace NRSGitCheck.Tests;
 /// </summary>
 public sealed class SyntaxHighlighterTests
 {
+    private sealed class StubClipboard : IClipboardService
+    {
+        public string? Text { get; private set; }
+
+        public Task<bool> SetTextAsync(string? text)
+        {
+            Text = text;
+            return Task.FromResult(true);
+        }
+    }
+
     private sealed class StubGitService : IGitService
     {
         private readonly FileContent _content;
@@ -77,7 +88,7 @@ public sealed class SyntaxHighlighterTests
         var doc = new DiffService(git, new SyntaxHighlighter())
             .BuildDiff("base", new FileChange("A.cs", null, ChangeKind.Modified, 1, 1, false));
 
-        var vm = new DiffViewModel(new ConstDiff(doc), new StubSettings());
+        var vm = new DiffViewModel(new ConstDiff(doc), new StubSettings(), new StubClipboard());
         await vm.LoadAsync("base", new FileChange("A.cs", null, ChangeKind.Modified, 1, 1, false));
 
         var segments = vm.InlineRows.OfType<InlineDiffRow>().SelectMany(r => r.Segments).ToList();

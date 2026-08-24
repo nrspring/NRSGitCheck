@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -15,6 +16,17 @@ namespace NRSGitCheck.Tests;
 /// </summary>
 public sealed class DiffViewModelTests
 {
+    private sealed class StubClipboard : IClipboardService
+    {
+        public string? Text { get; private set; }
+
+        public Task<bool> SetTextAsync(string? text)
+        {
+            Text = text;
+            return Task.FromResult(true);
+        }
+    }
+
     private sealed class StubSettings : ISettingsService
     {
         public AppSettings Settings { get; } = new();
@@ -42,7 +54,7 @@ public sealed class DiffViewModelTests
     public async Task Modified_file_builds_both_layouts_with_word_segments()
     {
         var doc = DiffEngine.Compute("the quick brown fox\n", "the slow brown fox\n");
-        var vm = new DiffViewModel(new StubDiff(doc), new StubSettings());
+        var vm = new DiffViewModel(new StubDiff(doc), new StubSettings(), new StubClipboard());
 
         await vm.LoadAsync("base", Change());
 
@@ -64,7 +76,7 @@ public sealed class DiffViewModelTests
     public async Task Added_file_side_rows_have_empty_left_side()
     {
         var doc = DiffEngine.Compute("", "new1\nnew2\n");
-        var vm = new DiffViewModel(new StubDiff(doc), new StubSettings());
+        var vm = new DiffViewModel(new StubDiff(doc), new StubSettings(), new StubClipboard());
 
         await vm.LoadAsync("base", Change());
 
@@ -77,7 +89,7 @@ public sealed class DiffViewModelTests
     [Fact]
     public async Task Binary_document_shows_message_not_diff()
     {
-        var vm = new DiffViewModel(new StubDiff(DiffDocument.Binary()), new StubSettings());
+        var vm = new DiffViewModel(new StubDiff(DiffDocument.Binary()), new StubSettings(), new StubClipboard());
 
         await vm.LoadAsync("base", Change());
 
@@ -96,7 +108,7 @@ public sealed class DiffViewModelTests
         var doc = DiffEngine.Compute(oldText, newText, contextLines: 3);
         Assert.Equal(2, doc.Hunks.Count);
 
-        var vm = new DiffViewModel(new StubDiff(doc), new StubSettings());
+        var vm = new DiffViewModel(new StubDiff(doc), new StubSettings(), new StubClipboard());
         var scrolls = 0;
         vm.ScrollToRequested += _ => scrolls++;
 
@@ -121,7 +133,7 @@ public sealed class DiffViewModelTests
         var doc = DiffEngine.Compute(oldText, newText, contextLines: 3);
         Assert.Single(doc.Hunks);                 // one hunk...
 
-        var vm = new DiffViewModel(new StubDiff(doc), new StubSettings());
+        var vm = new DiffViewModel(new StubDiff(doc), new StubSettings(), new StubClipboard());
         await vm.LoadAsync("base", Change());
 
         Assert.Equal(2, vm.SectionCount);         // ...but two navigable sections
@@ -143,7 +155,7 @@ public sealed class DiffViewModelTests
         var doc = DiffEngine.Compute(oldText, newText, contextLines: 3, wholeFile: true);
         Assert.Single(doc.Hunks);
 
-        var vm = new DiffViewModel(new StubDiff(doc), new StubSettings());
+        var vm = new DiffViewModel(new StubDiff(doc), new StubSettings(), new StubClipboard());
         await vm.LoadAsync("base", Change());
 
         Assert.Equal(3, vm.SectionCount);
@@ -160,7 +172,7 @@ public sealed class DiffViewModelTests
             i is 5 or 9 or 30 or 50 ? $"line{i}-x" : $"line{i}")) + "\n";
 
         var doc = DiffEngine.Compute(oldText, newText, contextLines: 3);
-        var vm = new DiffViewModel(new StubDiff(doc), new StubSettings());
+        var vm = new DiffViewModel(new StubDiff(doc), new StubSettings(), new StubClipboard());
         await vm.LoadAsync("base", Change());
 
         vm.Layout = DiffLayout.Inline;
@@ -176,7 +188,7 @@ public sealed class DiffViewModelTests
     {
         var settings = new StubSettings();
         settings.Settings.LastDiffLayout = DiffLayout.SideBySide;
-        var vm = new DiffViewModel(new StubDiff(DiffDocument.Binary()), settings);
+        var vm = new DiffViewModel(new StubDiff(DiffDocument.Binary()), settings, new StubClipboard());
 
         Assert.True(vm.IsSideBySide);
 
@@ -212,7 +224,7 @@ public sealed class DiffViewModelTests
             new StubDiff(DiffEngine.Compute(
                 Lines("a", "b", "c", "d", "e", "f", "g"),
                 Lines("a", "B", "C", "D", "e", "f", "g"))),
-            new StubSettings());
+            new StubSettings(), new StubClipboard());
         vm.Layout = DiffLayout.Inline;
 
         SectionAnchor? section = null;
@@ -236,7 +248,7 @@ public sealed class DiffViewModelTests
     {
         var vm = new DiffViewModel(
             new StubDiff(DiffEngine.Compute(Lines("a", "b", "c"), Lines("a", "B", "c"))),
-            new StubSettings());
+            new StubSettings(), new StubClipboard());
 
         SectionAnchor? section = null;
         vm.ScrollToRequested += a => section = a;
@@ -253,7 +265,7 @@ public sealed class DiffViewModelTests
             new StubDiff(DiffEngine.Compute(
                 Lines("a", "b", "c", "d", "e"),
                 Lines("a", "B", "C", "d", "e"))),
-            new StubSettings());
+            new StubSettings(), new StubClipboard());
         vm.Layout = DiffLayout.SideBySide;
 
         SectionAnchor? section = null;
@@ -265,6 +277,98 @@ public sealed class DiffViewModelTests
         var rows = vm.SideRows.ToList();
         Assert.True(rows.IndexOf(section!.End) > rows.IndexOf(section.Start));
     }
+
+    [Fact]
+    public async Task Copying_selected_inline_rows_yields_plain_code()
+    {
+        var clipboard = new StubClipboard();
+        var vm = new DiffViewModel(
+            new StubDiff(DiffEngine.Compute(Lines("a", "b", "c"), Lines("a", "B", "c"))),
+            new StubSettings(), clipboard);
+        vm.Layout = DiffLayout.Inline;
+        await vm.LoadAsync("base", Change());
+
+        var rows = vm.InlineRows.OfType<InlineDiffRow>().ToList();
+        var copied = await vm.CopySelectionAsync(rows.Cast<object>(), DiffPane.Left);
+
+        Assert.Equal(rows.Count, copied);
+        Assert.NotNull(clipboard.Text);
+        Assert.DoesNotContain("@@", clipboard.Text);            // no hunk headers
+        Assert.DoesNotContain("+", clipboard.Text);             // no +/- markers
+        Assert.Contains("B", clipboard.Text);
+    }
+
+    [Fact]
+    public void Copy_text_drops_hunk_headers_and_keeps_line_order()
+    {
+        var rows = new object[]
+        {
+            new HunkSeparatorRow { Header = "@@ -1,3 +1,3 @@" },
+            Row("first"),
+            Row("second"),
+        };
+
+        var text = DiffViewModel.BuildCopyText(rows, DiffPane.Left);
+
+        Assert.Equal("first" + Environment.NewLine + "second", text);
+    }
+
+    [Fact]
+    public void Copying_a_side_by_side_row_takes_only_the_pane_it_came_from()
+    {
+        var rows = new object[]
+        {
+            new SideDiffRow { Left = Cell("old line"), Right = Cell("new line") },
+        };
+
+        Assert.Equal("old line", DiffViewModel.BuildCopyText(rows, DiffPane.Left));
+        Assert.Equal("new line", DiffViewModel.BuildCopyText(rows, DiffPane.Right));
+    }
+
+    [Fact]
+    public void A_filler_cell_contributes_no_line_at_all()
+    {
+        // An added line has nothing on the old side: copying the left pane must not
+        // leave a blank line where the filler was.
+        var rows = new object[]
+        {
+            new SideDiffRow { Left = SideCell.Empty, Right = Cell("added") },
+            new SideDiffRow { Left = Cell("kept"), Right = Cell("kept") },
+        };
+
+        Assert.Equal("kept", DiffViewModel.BuildCopyText(rows, DiffPane.Left));
+    }
+
+    [Fact]
+    public void Copying_nothing_yields_nothing()
+    {
+        Assert.Equal(string.Empty, DiffViewModel.BuildCopyText(null, DiffPane.Left));
+        Assert.Equal(string.Empty, DiffViewModel.BuildCopyText(Array.Empty<object>(), DiffPane.Left));
+        Assert.Equal(string.Empty, DiffViewModel.BuildCopyText(
+            new object[] { new HunkSeparatorRow { Header = "@@" } }, DiffPane.Left));
+    }
+
+    [Fact]
+    public async Task An_empty_selection_copies_nothing_and_reports_zero()
+    {
+        var clipboard = new StubClipboard();
+        var vm = new DiffViewModel(new StubDiff(DiffDocument.Binary()), new StubSettings(), clipboard);
+
+        Assert.Equal(0, await vm.CopySelectionAsync(Array.Empty<object>(), DiffPane.Left));
+        Assert.Null(clipboard.Text);
+    }
+
+    private static InlineDiffRow Row(string text) => new()
+    {
+        Kind = DiffLineKind.Context,
+        Segments = new[] { new RenderSegment(text, WordSegmentKind.Unchanged, null) },
+    };
+
+    private static SideCell Cell(string text) => new()
+    {
+        Kind = DiffLineKind.Context,
+        Segments = new[] { new RenderSegment(text, WordSegmentKind.Unchanged, null) },
+    };
 
     private static string Lines(params string[] lines) =>
         string.Join((char)10, lines) + (char)10;

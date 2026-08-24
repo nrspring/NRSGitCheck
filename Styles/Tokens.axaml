@@ -37,6 +37,9 @@
       <SolidColorBrush x:Key="AppInfoText" Color="#2059C7" />
       <SolidColorBrush x:Key="AppMutedFill" Color="#14647285" />
       <SolidColorBrush x:Key="AppMutedText" Color="#546174" />
+
+      <!-- Selected diff lines: a wash that sits under the add/remove tints. -->
+      <SolidColorBrush x:Key="AppSelection" Color="#332F6FED" />
     </ResourceDictionary>
 
     <ResourceDictionary x:Key="Dark">
@@ -62,6 +65,8 @@
       <SolidColorBrush x:Key="AppInfoText" Color="#7FB0F9" />
       <SolidColorBrush x:Key="AppMutedFill" Color="#1F8A94A6" />
       <SolidColorBrush x:Key="AppMutedText" Color="#9AA4B2" />
+
+      <SolidColorBrush x:Key="AppSelection" Color="#4D4C8DF6" />
     </ResourceDictionary>
 
   </ResourceDictionary.ThemeDictionaries>

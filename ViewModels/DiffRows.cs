@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using NRSGitCheck.Models;
 
 namespace NRSGitCheck.ViewModels;
@@ -57,6 +58,9 @@ public sealed class InlineDiffRow
     public string Marker { get; init; } = " ";
     public DiffLineKind Kind { get; init; }
     public IReadOnlyList<RenderSegment> Segments { get; init; } = Array.Empty<RenderSegment>();
+
+    /// <summary>The line as plain text, without the gutter or the +/- marker.</summary>
+    public string Text => string.Concat(Segments.Select(s => s.Text));
 }
 
 /// <summary>One side (old or new) of a side-by-side row; may be an empty filler.</summary>
@@ -66,6 +70,9 @@ public sealed class SideCell
     public string Number { get; init; } = string.Empty;
     public DiffLineKind Kind { get; init; }
     public IReadOnlyList<RenderSegment> Segments { get; init; } = Array.Empty<RenderSegment>();
+
+    /// <summary>The cell as plain text; empty for a filler cell.</summary>
+    public string Text => IsEmpty ? string.Empty : string.Concat(Segments.Select(s => s.Text));
 
     public static SideCell Empty { get; } = new() { IsEmpty = true };
 }

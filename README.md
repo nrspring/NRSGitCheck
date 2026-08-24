@@ -43,6 +43,10 @@ on your behalf.
   **word-level** add/remove emphasis on modified lines.
 - **Whole-file or hunks** — view just the changed regions with context, or the entire
   file with the diff highlighting intact.
+- **Select and copy lines** — click a line in either pane, shift-click to extend,
+  ctrl-click to pick out individual ones, then `Ctrl+C` or right-click → Copy. What
+  lands on the clipboard is plain code: no gutter numbers, no `+`/`−` markers, and no
+  hunk headers. In side-by-side, each pane copies its own side.
 - **Changed-files tree** with a live filter and per-file `+`/`−` line counts.
 - **Progressive rendering** — large diffs stream in hunk-by-hunk so the top of a file is
   visible while the rest is still being computed (see [How it works](#how-it-works)).

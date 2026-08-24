@@ -2,6 +2,9 @@ using System.Collections;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using NRSGitCheck.ViewModels;
@@ -73,6 +76,38 @@ public partial class DiffView : UserControl
 
     private ScrollViewer? FindScrollViewer(string name) =>
         this.FindControl<ListBox>(name)?.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+
+    /// <summary>Ctrl+C over a diff pane copies the selected lines.</summary>
+    private void OnDiffListKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.C || !e.KeyModifiers.HasFlag(KeyModifiers.Control))
+            return;
+
+        if (sender is ListBox list)
+        {
+            Copy(list);
+            e.Handled = true;
+        }
+    }
+
+    private void OnCopyMenuClick(object? sender, RoutedEventArgs e)
+    {
+        // The menu item lives in the list's own context menu, so walk back to it.
+        if (sender is Control { Parent: ContextMenu menu } && menu.Parent is ListBox list)
+            Copy(list);
+        else if (sender is Control control &&
+                 control.FindLogicalAncestorOfType<ContextMenu>() is { PlacementTarget: ListBox target })
+            Copy(target);
+    }
+
+    private void Copy(ListBox list)
+    {
+        if (_vm is null)
+            return;
+
+        var pane = list.Name == "SideRightList" ? DiffPane.Right : DiffPane.Left;
+        _ = _vm.CopySelectionAsync(list.SelectedItems?.Cast<object>().ToList(), pane);
+    }
 
     private void OnScrollToRequested(SectionAnchor section)
     {
