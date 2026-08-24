@@ -23,9 +23,10 @@
                  HorizontalAlignment="Center" />
 
       <Button Content="Open Repository…"
+              Classes="accent"
               Command="{Binding OpenRepositoryCommand}"
               HorizontalAlignment="Center"
-              Padding="18,8"
+              Padding="20,9"
               Margin="0,4,0,0" />
 
       <!-- Inline, non-blocking error for invalid folders (FR-2). -->
@@ -33,7 +34,7 @@
               Background="#33D32F2F"
               BorderBrush="#80D32F2F"
               BorderThickness="1"
-              CornerRadius="4"
+              CornerRadius="8"
               Padding="12,8">
         <TextBlock Text="{Binding ErrorMessage}"
                    TextWrapping="Wrap"
@@ -51,15 +52,15 @@
           <DataTemplate x:DataType="vm:RecentRepositoryViewModel">
             <Grid ColumnDefinitions="*,Auto" Margin="0,2">
               <Button Grid.Column="0"
+                      Classes="ghost"
                       Command="{Binding OpenCommand}"
                       HorizontalAlignment="Stretch"
                       HorizontalContentAlignment="Left"
-                      Background="Transparent"
-                      Padding="10,6">
+                      Padding="10,7">
                 <StackPanel Spacing="1">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                    <Border Background="#33D32F2F" CornerRadius="3" Padding="5,0"
+                    <Border Background="#33D32F2F" CornerRadius="999" Padding="8,1"
                             VerticalAlignment="Center"
                             IsVisible="{Binding !DirectoryExists}">
                       <TextBlock Text="missing" FontSize="11" Foreground="#FFE57373" />
@@ -69,12 +70,12 @@
                 </StackPanel>
               </Button>
               <Button Grid.Column="1"
+                      Classes="ghost"
                       Command="{Binding RemoveCommand}"
                       Content="✕"
-                      Background="Transparent"
                       ToolTip.Tip="Remove from history"
                       VerticalAlignment="Center"
-                      Padding="8,4" />
+                      Padding="9,4" />
             </Grid>
           </DataTemplate>
         </ItemsControl.ItemTemplate>

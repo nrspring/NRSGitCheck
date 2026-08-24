@@ -1,0 +1,73 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    Shared surface / border / accent colors, plus the corner radii the Fluent
+    theme reads for every control. Defined per theme variant so light and dark
+    each get values picked for them rather than one set of compromises.
+  -->
+
+  <ResourceDictionary.ThemeDictionaries>
+
+    <ResourceDictionary x:Key="Light">
+      <!-- Chrome and surfaces -->
+      <SolidColorBrush x:Key="AppChrome" Color="#F7F8FA" />
+      <SolidColorBrush x:Key="AppSurface" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="AppSurfaceHover" Color="#F3F4F7" />
+      <!-- Hairline separators; the strong one is for controls that need an edge. -->
+      <SolidColorBrush x:Key="AppBorder" Color="#E4E7EC" />
+      <SolidColorBrush x:Key="AppBorderStrong" Color="#D2D7DE" />
+
+      <!-- Buttons -->
+      <SolidColorBrush x:Key="AppButtonFace" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="AppButtonFaceHover" Color="#F4F6F9" />
+      <SolidColorBrush x:Key="AppButtonFacePressed" Color="#E9ECF1" />
+
+      <!-- Accent -->
+      <SolidColorBrush x:Key="AppAccent" Color="#2F6FED" />
+      <SolidColorBrush x:Key="AppAccentHover" Color="#245FD8" />
+      <SolidColorBrush x:Key="AppAccentPressed" Color="#1D4FBC" />
+      <SolidColorBrush x:Key="AppAccentSubtle" Color="#142F6FED" />
+      <SolidColorBrush x:Key="AppOnAccent" Color="#FFFFFF" />
+
+      <!-- Status badges: tinted fill with a saturated label, rather than a solid block. -->
+      <SolidColorBrush x:Key="AppWarnFill" Color="#1FD97706" />
+      <SolidColorBrush x:Key="AppWarnText" Color="#B45309" />
+      <SolidColorBrush x:Key="AppInfoFill" Color="#1F2F6FED" />
+      <SolidColorBrush x:Key="AppInfoText" Color="#2059C7" />
+      <SolidColorBrush x:Key="AppMutedFill" Color="#14647285" />
+      <SolidColorBrush x:Key="AppMutedText" Color="#546174" />
+    </ResourceDictionary>
+
+    <ResourceDictionary x:Key="Dark">
+      <SolidColorBrush x:Key="AppChrome" Color="#191B1F" />
+      <SolidColorBrush x:Key="AppSurface" Color="#1E2126" />
+      <SolidColorBrush x:Key="AppSurfaceHover" Color="#24272D" />
+      <SolidColorBrush x:Key="AppBorder" Color="#2B2F36" />
+      <SolidColorBrush x:Key="AppBorderStrong" Color="#3A3F48" />
+
+      <SolidColorBrush x:Key="AppButtonFace" Color="#24272D" />
+      <SolidColorBrush x:Key="AppButtonFaceHover" Color="#2C3037" />
+      <SolidColorBrush x:Key="AppButtonFacePressed" Color="#343941" />
+
+      <SolidColorBrush x:Key="AppAccent" Color="#4C8DF6" />
+      <SolidColorBrush x:Key="AppAccentHover" Color="#609BF8" />
+      <SolidColorBrush x:Key="AppAccentPressed" Color="#3B79DC" />
+      <SolidColorBrush x:Key="AppAccentSubtle" Color="#294C8DF6" />
+      <SolidColorBrush x:Key="AppOnAccent" Color="#0E1116" />
+
+      <SolidColorBrush x:Key="AppWarnFill" Color="#2BF59E0B" />
+      <SolidColorBrush x:Key="AppWarnText" Color="#F0B357" />
+      <SolidColorBrush x:Key="AppInfoFill" Color="#2B4C8DF6" />
+      <SolidColorBrush x:Key="AppInfoText" Color="#7FB0F9" />
+      <SolidColorBrush x:Key="AppMutedFill" Color="#1F8A94A6" />
+      <SolidColorBrush x:Key="AppMutedText" Color="#9AA4B2" />
+    </ResourceDictionary>
+
+  </ResourceDictionary.ThemeDictionaries>
+
+  <!-- Fluent reads these for buttons, text boxes, combo boxes, and flyouts. -->
+  <CornerRadius x:Key="ControlCornerRadius">6</CornerRadius>
+  <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
+
+</ResourceDictionary>

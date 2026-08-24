@@ -62,19 +62,19 @@
 
       <!-- Header: filename + layout toggle + legend -->
       <Border Grid.Row="0"
-              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+              BorderBrush="{DynamicResource AppBorder}"
               BorderThickness="0,0,0,1"
-              Padding="8,6">
+              Padding="10,7">
         <Grid ColumnDefinitions="*,Auto">
           <TextBlock Grid.Column="0" Text="{Binding FilePath}" FontWeight="SemiBold" VerticalAlignment="Center"
                      TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding FilePath}" />
           <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-            <Border Background="#3328A745" CornerRadius="2" Padding="6,1"><TextBlock Text="added" FontSize="11" /></Border>
-            <Border Background="#33E05252" CornerRadius="2" Padding="6,1"><TextBlock Text="removed" FontSize="11" /></Border>
-            <ToggleButton Content="{Binding WholeFileToggleLabel}" IsChecked="{Binding ShowWholeFile}" Padding="10,3"
+            <Border Background="#3328A745" CornerRadius="999" Padding="9,2"><TextBlock Text="added" FontSize="11" /></Border>
+            <Border Background="#33E05252" CornerRadius="999" Padding="9,2"><TextBlock Text="removed" FontSize="11" /></Border>
+            <ToggleButton Content="{Binding WholeFileToggleLabel}" IsChecked="{Binding ShowWholeFile}"
                           ToolTip.Tip="Show the entire file instead of just the changed regions" />
-            <Button Content="Inline view" Command="{Binding ToggleLayoutCommand}" IsVisible="{Binding IsSideBySide}" Padding="10,3" />
-            <Button Content="Side-by-side view" Command="{Binding ToggleLayoutCommand}" IsVisible="{Binding IsInline}" Padding="10,3" />
+            <Button Content="Inline view" Command="{Binding ToggleLayoutCommand}" IsVisible="{Binding IsSideBySide}" />
+            <Button Content="Side-by-side view" Command="{Binding ToggleLayoutCommand}" IsVisible="{Binding IsInline}" />
           </StackPanel>
         </Grid>
       </Border>
@@ -90,7 +90,7 @@
                IsVisible="{Binding IsInline}">
         <ListBox.DataTemplates>
           <DataTemplate DataType="vm:HunkSeparatorRow">
-            <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" Padding="8,2">
+            <Border Background="{DynamicResource AppChrome}" Padding="10,3">
               <TextBlock Text="{Binding Header}" FontFamily="{StaticResource MonoFont}" FontSize="11" Opacity="0.6" />
             </Border>
           </DataTemplate>
@@ -123,7 +123,7 @@
                  ScrollViewer.HorizontalScrollBarVisibility="Auto">
           <ListBox.DataTemplates>
             <DataTemplate DataType="vm:HunkSeparatorRow">
-              <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" Padding="8,2">
+              <Border Background="{DynamicResource AppChrome}" Padding="10,3">
                 <TextBlock Text="{Binding Header}" FontFamily="{StaticResource MonoFont}" FontSize="11" Opacity="0.6" />
               </Border>
             </DataTemplate>
@@ -141,7 +141,7 @@
           </ListBox.DataTemplates>
         </ListBox>
 
-        <Border Grid.Column="1" Background="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+        <Border Grid.Column="1" Background="{DynamicResource AppBorder}" />
 
         <ListBox Grid.Column="2"
                  Name="SideRightList"
@@ -152,7 +152,7 @@
                  ScrollViewer.HorizontalScrollBarVisibility="Auto">
           <ListBox.DataTemplates>
             <DataTemplate DataType="vm:HunkSeparatorRow">
-              <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" Padding="8,2">
+              <Border Background="{DynamicResource AppChrome}" Padding="10,3">
                 <TextBlock Text="{Binding Header}" FontFamily="{StaticResource MonoFont}" FontSize="11" Opacity="0.6" />
               </Border>
             </DataTemplate>

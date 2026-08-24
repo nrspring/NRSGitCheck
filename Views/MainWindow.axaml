@@ -11,27 +11,12 @@
         MinWidth="800" MinHeight="500"
         WindowState="Maximized">
 
- <Window.Styles>
-   <!-- Rounded "pill" buttons used in the repo-picker ribbon. -->
-   <Style Selector="Button.pill">
-     <Setter Property="CornerRadius" Value="14" />
-     <Setter Property="Padding" Value="12,5" />
-   </Style>
-   <!-- Main tab strip: modest header size so it reads as chrome, not a headline. -->
-   <Style Selector="TabItem">
-     <Setter Property="FontSize" Value="15" />
-     <Setter Property="Padding" Value="14,0" />
-     <Setter Property="MinHeight" Value="40" />
-   </Style>
- </Window.Styles>
-
  <Panel>
   <DockPanel LastChildFill="True">
 
     <!-- Status bar -->
     <Border DockPanel.Dock="Bottom"
-            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+            Classes="chrome"
             BorderThickness="0,1,0,0"
             Height="26">
       <Grid ColumnDefinitions="*,Auto" Margin="12,0">
@@ -50,8 +35,7 @@
 
           <!-- Top bar -->
           <Border DockPanel.Dock="Top"
-                  Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                  BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                  Classes="chrome"
                   BorderThickness="0,0,0,1"
                   MinHeight="48">
 
@@ -176,8 +160,7 @@
           <!-- Repo-picker ribbon: open-folder action + recent-repo pills (FR-1, FR-3..4). -->
           <Border DockPanel.Dock="Top"
                   IsVisible="{Binding IsRepoRibbonVisible}"
-                  Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                  BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                  Classes="chrome"
                   BorderThickness="0,0,0,1"
                   Padding="16,12">
             <StackPanel Spacing="10">
@@ -298,7 +281,7 @@
               </Grid>
 
               <GridSplitter Grid.Column="1" Width="4" ResizeDirection="Columns"
-                            Background="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+                            Background="{DynamicResource AppBorder}" />
 
               <!-- Right: the diff view for the selected file -->
               <views:DiffView Grid.Column="2" DataContext="{Binding Diff}" />
@@ -336,10 +319,7 @@
 
   <!-- Busy overlay: shown while opening a repo or recomputing the diff (NFR-1). -->
   <Border IsVisible="{Binding IsBusy}" Background="#22000000">
-    <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-            BorderThickness="1"
-            CornerRadius="8"
+    <Border Classes="card"
             Padding="24,18"
             HorizontalAlignment="Center" VerticalAlignment="Center">
       <StackPanel Spacing="12" MinWidth="180">
@@ -352,10 +332,7 @@
   <!-- Keyboard shortcuts cheat-sheet overlay (FR-26) -->
   <!-- Review-a-PR modal: fetches refs/pull/N/head into a local pr-N branch. -->
   <Border IsVisible="{Binding IsPullRequestDialogVisible}" Background="#99000000">
-    <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-            BorderThickness="1"
-            CornerRadius="8"
+    <Border Classes="card"
             Padding="24"
             MinWidth="520"
             MaxWidth="620"
@@ -395,10 +372,7 @@
   </Border>
 
   <Border IsVisible="{Binding IsHelpVisible}" Background="#99000000">
-    <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-            BorderThickness="1"
-            CornerRadius="8"
+    <Border Classes="card"
             Padding="24"
             MinWidth="420"
             HorizontalAlignment="Center" VerticalAlignment="Center">

@@ -1,0 +1,162 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    Application-wide button and border chrome. Only appearance is set here —
+    no templates are replaced, so every control keeps its Fluent behavior and
+    the states below are just re-colored from the shared tokens.
+  -->
+
+  <!-- Buttons -->
+
+  <Style Selector="Button">
+    <Setter Property="Background" Value="{DynamicResource AppButtonFace}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppBorderStrong}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="12,6" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="0:0:0.12" />
+        <BrushTransition Property="BorderBrush" Duration="0:0:0.12" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AppButtonFaceHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppBorderStrong}" />
+  </Style>
+
+  <Style Selector="Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AppButtonFacePressed}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppBorderStrong}" />
+  </Style>
+
+  <!-- Disabled reads as "not available now", not as a second kind of button. -->
+  <Style Selector="Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppBorder}" />
+    <Setter Property="Opacity" Value="0.45" />
+  </Style>
+
+  <!-- The one primary action per view. -->
+  <Style Selector="Button.accent">
+    <Setter Property="Background" Value="{DynamicResource AppAccent}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppOnAccent}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="Button.accent /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{DynamicResource AppOnAccent}" />
+  </Style>
+
+  <Style Selector="Button.accent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AppAccentHover}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource AppOnAccent}" />
+  </Style>
+
+  <Style Selector="Button.accent:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AppAccentPressed}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource AppOnAccent}" />
+  </Style>
+
+  <!-- Quiet buttons: no resting fill, chrome appears on hover (row actions, close). -->
+  <Style Selector="Button.ghost">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+  </Style>
+
+  <Style Selector="Button.ghost:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AppSurfaceHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppBorder}" />
+  </Style>
+
+  <!-- Toggle buttons -->
+
+  <Style Selector="ToggleButton">
+    <Setter Property="Background" Value="{DynamicResource AppButtonFace}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppBorderStrong}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="12,6" />
+    <Setter Property="FontWeight" Value="Medium" />
+  </Style>
+
+  <Style Selector="ToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AppButtonFaceHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppBorderStrong}" />
+  </Style>
+
+  <!-- Checked is a tint plus an accent edge, not a filled block. -->
+  <Style Selector="ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AppAccentSubtle}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppAccent}" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource AppAccent}" />
+  </Style>
+
+  <Style Selector="ToggleButton:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AppAccentSubtle}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppAccent}" />
+  </Style>
+
+  <!-- Rounded "pill" buttons (the repo-picker ribbon). -->
+  <Style Selector="Button.pill">
+    <Setter Property="CornerRadius" Value="16" />
+    <Setter Property="Padding" Value="14,6" />
+  </Style>
+
+  <!-- Inputs -->
+
+  <Style Selector="TextBox">
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="10,6" />
+  </Style>
+
+  <Style Selector="ComboBox">
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="10,6" />
+  </Style>
+
+  <!-- Surfaces -->
+
+  <!-- A raised panel: repository rows, dialogs, anything that groups content. -->
+  <Style Selector="Border.card">
+    <Setter Property="Background" Value="{DynamicResource AppSurface}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppBorder}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="10" />
+  </Style>
+
+  <!-- Window chrome: top bar, ribbon, status bar. -->
+  <Style Selector="Border.chrome">
+    <Setter Property="Background" Value="{DynamicResource AppChrome}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppBorder}" />
+  </Style>
+
+  <!-- Small status pills. -->
+  <Style Selector="Border.badge">
+    <Setter Property="CornerRadius" Value="999" />
+    <Setter Property="Padding" Value="9,3" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Border.badge > TextBlock">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <!-- Tabs -->
+
+  <Style Selector="TabItem">
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Padding" Value="14,0" />
+    <Setter Property="MinHeight" Value="42" />
+  </Style>
+
+</Styles>

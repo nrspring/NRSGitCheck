@@ -4,42 +4,26 @@
              x:Class="NRSGitCheck.Views.RepositoriesView"
              x:DataType="vm:RepositoriesViewModel">
 
-  <UserControl.Styles>
-    <!-- Small status pills: uncommitted work, unpushed commits, behind the remote. -->
-    <Style Selector="Border.badge">
-      <Setter Property="CornerRadius" Value="3" />
-      <Setter Property="Padding" Value="7,2" />
-      <Setter Property="VerticalAlignment" Value="Center" />
-    </Style>
-    <Style Selector="Border.badge > TextBlock">
-      <Setter Property="FontSize" Value="11" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Foreground" Value="White" />
-    </Style>
-  </UserControl.Styles>
-
   <DockPanel LastChildFill="True">
 
     <!-- Toolbar: add / refresh / bulk pull, plus what just happened. -->
     <Border DockPanel.Dock="Top"
-            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+            Classes="chrome"
             BorderThickness="0,0,0,1"
-            Padding="16,10">
+            Padding="16,12">
       <StackPanel Spacing="8">
 
         <StackPanel Orientation="Horizontal" Spacing="8">
-          <Button Command="{Binding AddRepositoryCommand}" Classes="accent" Padding="12,5">
+          <Button Command="{Binding AddRepositoryCommand}" Classes="accent">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <TextBlock Text="＋" />
               <TextBlock Text="Add repository…" />
             </StackPanel>
           </Button>
 
-          <Button Content="Refresh" Command="{Binding RefreshAllCommand}" Padding="12,5" />
+          <Button Content="Refresh" Command="{Binding RefreshAllCommand}" />
 
           <Button Command="{Binding PullAllOnMainCommand}"
-                  Padding="12,5"
                   ToolTip.Tip="Fast-forward main in every repository that currently has main checked out. Repositories on a feature branch are skipped.">
             <TextBlock Text="Pull all on main" />
           </Button>
@@ -77,12 +61,7 @@
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:TrackedRepositoryViewModel">
 
-              <Border Margin="0,0,0,10"
-                      Padding="14,12"
-                      CornerRadius="6"
-                      Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                      BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-                      BorderThickness="1">
+              <Border Classes="card" Margin="0,0,0,10" Padding="16,14">
 
                 <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
 
@@ -95,10 +74,11 @@
 
                   <!-- Stop tracking. Removes the entry here only; nothing on disk is touched. -->
                   <Button Grid.Row="0" Grid.Column="1"
+                          Classes="ghost"
                           Content="✕"
                           Command="{Binding RemoveCommand}"
                           IsEnabled="{Binding !IsBusy}"
-                          Padding="9,2"
+                          Padding="9,3"
                           VerticalAlignment="Top"
                           ToolTip.Tip="Remove from this list (the repository itself is left alone)" />
 
@@ -135,16 +115,19 @@
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
                                 Margin="12,0" VerticalAlignment="Center">
 
-                      <Border Classes="badge" Background="#D98324" IsVisible="{Binding HasUncommittedChanges}">
-                        <TextBlock Text="{Binding UncommittedText}" />
+                      <Border Classes="badge" Background="{DynamicResource AppWarnFill}"
+                              IsVisible="{Binding HasUncommittedChanges}">
+                        <TextBlock Text="{Binding UncommittedText}" Foreground="{DynamicResource AppWarnText}" />
                       </Border>
 
-                      <Border Classes="badge" Background="#3B7DD8" IsVisible="{Binding HasUnpushedCommits}">
-                        <TextBlock Text="{Binding UnpushedText}" />
+                      <Border Classes="badge" Background="{DynamicResource AppInfoFill}"
+                              IsVisible="{Binding HasUnpushedCommits}">
+                        <TextBlock Text="{Binding UnpushedText}" Foreground="{DynamicResource AppInfoText}" />
                       </Border>
 
-                      <Border Classes="badge" Background="#6B7280" IsVisible="{Binding IsBehind}">
-                        <TextBlock Text="{Binding BehindText}" />
+                      <Border Classes="badge" Background="{DynamicResource AppMutedFill}"
+                              IsVisible="{Binding IsBehind}">
+                        <TextBlock Text="{Binding BehindText}" Foreground="{DynamicResource AppMutedText}" />
                       </Border>
 
                       <TextBlock Text="clean" FontSize="11" Opacity="0.5"
@@ -155,11 +138,9 @@
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                       <Button Content="{Binding SwitchToMainLabel}"
                               Command="{Binding SwitchToMainCommand}"
-                              Padding="11,4"
                               ToolTip.Tip="Check out this repository's main branch" />
                       <Button Content="{Binding PullMainLabel}"
                               Command="{Binding PullMainCommand}"
-                              Padding="11,4"
                               ToolTip.Tip="Fetch and fast-forward main. Your working tree is left alone unless main is checked out." />
                     </StackPanel>
                   </Grid>
