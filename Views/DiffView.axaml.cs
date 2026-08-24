@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
@@ -80,7 +81,21 @@ public partial class DiffView : UserControl
         {
             var list = _vm?.IsInline == true ? this.FindControl<ListBox>("InlineList")
                                              : this.FindControl<ListBox>("SideLeftList");
-            list?.ScrollIntoView(row);
+            if (list is null)
+                return;
+
+            // ScrollIntoView stops as soon as the item is on screen, which parks a
+            // change on the very bottom edge when moving forwards. Bring a few rows
+            // *past* it into view first; the second call is then a no-op going down,
+            // and still guarantees the change is visible when coming back up.
+            if (list.ItemsSource is IList rows)
+            {
+                var index = rows.IndexOf(row);
+                if (index >= 0)
+                    list.ScrollIntoView(DiffViewModel.TrailingContextRow(index, rows.Count));
+            }
+
+            list.ScrollIntoView(row);
         }, DispatcherPriority.Background);
     }
 }

@@ -186,4 +186,20 @@ public sealed class DiffViewModelTests
         Assert.Equal(DiffLayout.Inline, settings.Settings.LastDiffLayout);
         Assert.True(settings.SaveCount > 0);
     }
+
+    [Theory]
+    [InlineData(10, 100, 16)]   // room below: the change gets its trailing context
+    [InlineData(97, 100, 99)]   // near the end: scroll as far as the file allows
+    [InlineData(99, 100, 99)]   // last row: nothing left to reveal
+    [InlineData(0, 1, 0)]       // single row
+    public void Scrolling_to_a_change_reveals_rows_past_it(int index, int rowCount, int expected)
+    {
+        Assert.Equal(expected, DiffViewModel.TrailingContextRow(index, rowCount));
+    }
+
+    [Fact]
+    public void Trailing_context_has_nothing_to_reveal_in_an_empty_diff()
+    {
+        Assert.Equal(-1, DiffViewModel.TrailingContextRow(0, 0));
+    }
 }

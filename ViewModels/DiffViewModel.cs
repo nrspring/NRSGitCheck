@@ -121,6 +121,27 @@ public partial class DiffViewModel : ViewModelBase
             _ = LoadAsync(sha, change);
     }
 
+    /// <summary>
+    /// How many rows are kept visible below a change when it is scrolled to. Landing a
+    /// change flush against the bottom edge makes it hard to read, because the lines it
+    /// affects are exactly the ones off screen.
+    /// </summary>
+    public const int TrailingContextRows = 6;
+
+    /// <summary>
+    /// The row to bring into view *before* the change itself, so the change ends up
+    /// with room beneath it. Clamped to the last row, so a change near the end of the
+    /// file scrolls as far as there is file to scroll.
+    /// </summary>
+    public static int TrailingContextRow(int index, int rowCount, int context = TrailingContextRows)
+    {
+        if (rowCount <= 0)
+            return -1;
+
+        var target = index + Math.Max(0, context);
+        return Math.Clamp(target, 0, rowCount - 1);
+    }
+
     /// <summary>Moves to the next changed section; false if already at the last one (FR-24, FR-27).</summary>
     public bool GoToNextSection()
     {

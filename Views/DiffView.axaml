@@ -69,8 +69,12 @@
           <TextBlock Grid.Column="0" Text="{Binding FilePath}" FontWeight="SemiBold" VerticalAlignment="Center"
                      TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding FilePath}" />
           <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-            <Border Background="#3328A745" CornerRadius="999" Padding="9,2"><TextBlock Text="added" FontSize="11" /></Border>
-            <Border Background="#33E05252" CornerRadius="999" Padding="9,2"><TextBlock Text="removed" FontSize="11" /></Border>
+            <Border Background="#3328A745" CornerRadius="999" Padding="9,3" VerticalAlignment="Center">
+              <TextBlock Text="added" FontSize="11" VerticalAlignment="Center" />
+            </Border>
+            <Border Background="#33E05252" CornerRadius="999" Padding="9,3" VerticalAlignment="Center">
+              <TextBlock Text="removed" FontSize="11" VerticalAlignment="Center" />
+            </Border>
             <ToggleButton Content="{Binding WholeFileToggleLabel}" IsChecked="{Binding ShowWholeFile}"
                           ToolTip.Tip="Show the entire file instead of just the changed regions" />
             <Button Content="Inline view" Command="{Binding ToggleLayoutCommand}" IsVisible="{Binding IsSideBySide}" />

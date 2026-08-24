@@ -19,6 +19,25 @@ public sealed record PullRequestReference(int Number, string? Owner, string? Rep
     public string? Slug => Owner is not null && Repository is not null ? $"{Owner}/{Repository}" : null;
 
     /// <summary>
+    /// Whether a branch is one of the local <c>pr-N</c> branches this application
+    /// creates when reviewing a pull request. Used to tell "I am reviewing a PR" from
+    /// "I am on my own work", which is not otherwise recorded anywhere.
+    /// </summary>
+    public static bool IsPullRequestBranch(string? branch) => TryGetNumberFromBranch(branch, out _);
+
+    /// <summary>Reads the pull request number back out of a <c>pr-N</c> branch name.</summary>
+    public static bool TryGetNumberFromBranch(string? branch, out int number)
+    {
+        number = 0;
+
+        if (branch is null || !branch.StartsWith("pr-", StringComparison.Ordinal))
+            return false;
+
+        var rest = branch[3..];
+        return IsAllDigits(rest) && int.TryParse(rest, out number) && number > 0;
+    }
+
+    /// <summary>
     /// Accepts a pull request URL (any host, with or without scheme, and with any
     /// trailing path such as /files), or a bare number optionally prefixed with '#'.
     /// </summary>

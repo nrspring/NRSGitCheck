@@ -107,7 +107,11 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isBusy;
 
-    partial void OnIsBusyChanged(bool value) => PullMainCommand.NotifyCanExecuteChanged();
+    partial void OnIsBusyChanged(bool value)
+    {
+        PullMainCommand.NotifyCanExecuteChanged();
+        ReturnToLocalCommand.NotifyCanExecuteChanged();
+    }
 
     [ObservableProperty]
     private string? _errorMessage;
@@ -125,7 +129,29 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         PullMainCommand.NotifyCanExecuteChanged();
         OpenPullRequestDialogCommand.NotifyCanExecuteChanged();
+        ReturnToLocalCommand.NotifyCanExecuteChanged();
     }
+
+    /// <summary>
+    /// Whether a pull request is checked out, i.e. HEAD is on one of the <c>pr-N</c>
+    /// branches this application creates. The toolbar swaps "Review PR" for the way
+    /// back to your own work while this is true.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isReviewingPullRequest;
+
+    partial void OnIsReviewingPullRequestChanged(bool value)
+    {
+        OpenPullRequestDialogCommand.NotifyCanExecuteChanged();
+        ReturnToLocalCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>
+    /// The branch that was checked out when a pull request review started, so leaving
+    /// the review can put it back. Null when the review began in another session — the
+    /// way back is then the main branch.
+    /// </summary>
+    private string? _branchBeforePullRequest;
 
     [ObservableProperty]
     private string? _repositoryName;
@@ -327,6 +353,11 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        // Note the branch being left, so "Local" can put it back. Reviewing a second
+        // PR without going back first must not overwrite it with a pr-N branch.
+        if (!PullRequestReference.IsPullRequestBranch(CurrentBranch))
+            _branchBeforePullRequest = CurrentBranch;
+
         // A link from another project would silently fetch that project's PR number
         // into this repository, so refuse rather than review the wrong thing.
         var originSlug = PullRequestReference.SlugFromRemoteUrl(_originUrl);
@@ -382,6 +413,85 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    // --- Back to local work -------------------------------------------------
+
+    /// <summary>
+    /// The local branch to return to when leaving a pull request: the one the review
+    /// started from, or the main branch when that is not known (a review picked up in
+    /// a later session).
+    /// </summary>
+    private string? ReturnBranch
+    {
+        get
+        {
+            if (_branchBeforePullRequest is { Length: > 0 } remembered &&
+                !PullRequestReference.IsPullRequestBranch(remembered))
+                return remembered;
+
+            if (MainBranchName is not { Length: > 0 } main)
+                return null;
+
+            // "origin/main" has no local branch of that name; check out "main".
+            var slash = main.IndexOf('/');
+            return slash < 0 ? main : main[(slash + 1)..];
+        }
+    }
+
+    private bool CanReturnToLocal() =>
+        HasRepo && IsReviewingPullRequest && !IsBusy && !IsPulling && ReturnBranch is not null;
+
+    /// <summary>
+    /// Leaves a pull request review: checks the previous branch back out and puts the
+    /// comparison back on uncommitted changes, which is what "local" means here. The
+    /// pr-N branch is left in place, so the review can be resumed without re-fetching.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanReturnToLocal))]
+    private async Task ReturnToLocal()
+    {
+        if (_workingDirectory is null || ReturnBranch is not { } target)
+            return;
+
+        ErrorMessage = null;
+        var previousStatus = Status;
+        Status = $"Switching back to {target}\u2026";
+        using var busy = BeginBusy();
+        try
+        {
+            var result = await _gitCommands.CheckoutBranchAsync(_workingDirectory, target);
+            if (!result.Success)
+            {
+                ErrorMessage = result.Message;
+                Status = previousStatus;
+                return;
+            }
+
+            var snapshot = await Task.Run(() => _git.OpenRepository(_workingDirectory));
+            ApplySnapshot(snapshot);
+
+            // Back to your own work means your working tree, not a branch comparison.
+            SetField(() => SelectedMode =
+                ComparisonModes.FirstOrDefault(m => m.Mode == ComparisonMode.LastCommit) ?? SelectedMode);
+            OnPropertyChanged(nameof(IsOtherBranchMode));
+            OnPropertyChanged(nameof(IsBranchBaseMode));
+            OnPropertyChanged(nameof(IsSinceCommitMode));
+
+            _branchBeforePullRequest = null;
+
+            await RefreshComparisonAsync();
+            Status = $"Back on {target}.";
+        }
+        catch (GitException ex)
+        {
+            ErrorMessage = ex.Message;
+            Status = previousStatus;
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Could not switch back: {ex.Message}";
+            Status = previousStatus;
+        }
+    }
+
     // --- Pull main ----------------------------------------------------------
 
     /// <summary>
@@ -395,7 +505,11 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isPulling;
 
-    partial void OnIsPullingChanged(bool value) => PullMainCommand.NotifyCanExecuteChanged();
+    partial void OnIsPullingChanged(bool value)
+    {
+        PullMainCommand.NotifyCanExecuteChanged();
+        ReturnToLocalCommand.NotifyCanExecuteChanged();
+    }
 
     /// <summary>
     /// Brings the main branch up to date from its remote. This is the only action in
@@ -593,8 +707,10 @@ public partial class MainWindowViewModel : ViewModelBase
         MainBranchName = snapshot.MainBranch;
         HasRemote = snapshot.HasRemote;
         _originUrl = snapshot.OriginUrl;
+        IsReviewingPullRequest = PullRequestReference.IsPullRequestBranch(snapshot.CurrentBranch);
         PullMainCommand.NotifyCanExecuteChanged();
         OpenPullRequestDialogCommand.NotifyCanExecuteChanged();
+        ReturnToLocalCommand.NotifyCanExecuteChanged();
 
         LocalBranches.Clear();
         foreach (var b in snapshot.LocalBranches)

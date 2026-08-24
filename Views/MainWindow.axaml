@@ -135,9 +135,18 @@
 
                 <Button Content="Review PR…"
                         Command="{Binding OpenPullRequestDialogCommand}"
+                        IsVisible="{Binding !IsReviewingPullRequest}"
                         VerticalAlignment="Center"
                         Margin="6,0,0,0"
                         ToolTip.Tip="Paste a pull request link to fetch it and switch to it" />
+
+                <!-- While a PR is checked out, the useful move is getting back out of it. -->
+                <Button Content="Local"
+                        Command="{Binding ReturnToLocalCommand}"
+                        IsVisible="{Binding IsReviewingPullRequest}"
+                        VerticalAlignment="Center"
+                        Margin="6,0,0,0"
+                        ToolTip.Tip="Leave this pull request: check the branch you came from back out and show your uncommitted changes" />
 
                 <!-- The only action that writes to the repository: fast-forward main from its remote. -->
                 <Button Command="{Binding PullMainCommand}"
@@ -185,17 +194,28 @@
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:RecentRepositoryViewModel">
-                      <Button Classes="pill"
-                              Command="{Binding OpenCommand}"
-                              Margin="0,0,8,8"
-                              ToolTip.Tip="{Binding Path}">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                          <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
-                          <TextBlock Text="missing" FontSize="10" Foreground="#FFE57373"
-                                     VerticalAlignment="Center"
-                                     IsVisible="{Binding !DirectoryExists}" />
-                        </StackPanel>
-                      </Button>
+                      <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,8,8">
+                        <Button Classes="pill"
+                                Command="{Binding OpenCommand}"
+                                ToolTip.Tip="{Binding Path}">
+                          <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                            <TextBlock Text="missing" FontSize="10" Foreground="#FFE57373"
+                                       VerticalAlignment="Center"
+                                       IsVisible="{Binding !DirectoryExists}" />
+                          </StackPanel>
+                        </Button>
+
+                        <!-- Only offered for entries whose folder is gone: opening one
+                             can only fail, so the useful action is dropping it. -->
+                        <Button Classes="pill"
+                                Content="✕"
+                                Command="{Binding RemoveCommand}"
+                                IsVisible="{Binding !DirectoryExists}"
+                                Padding="10,6"
+                                VerticalAlignment="Center"
+                                ToolTip.Tip="Remove this missing repository from the list" />
+                      </StackPanel>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
