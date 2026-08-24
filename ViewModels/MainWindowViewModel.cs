@@ -30,7 +30,8 @@ public partial class MainWindowViewModel : ViewModelBase
         IGitCommandService gitCommands,
         IFolderPickerService folderPicker,
         DiffViewModel diff,
-        IThemeService themeService)
+        IThemeService themeService,
+        RepositoriesViewModel repositories)
     {
         _settings = settings;
         _git = git;
@@ -38,6 +39,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _folderPicker = folderPicker;
         _themeService = themeService;
         Diff = diff;
+        Repositories = repositories;
 
         _selectedMode = ComparisonModes.FirstOrDefault(o => o.Mode == settings.Settings.LastComparisonMode)
                         ?? ComparisonModes[0];
@@ -72,6 +74,24 @@ public partial class MainWindowViewModel : ViewModelBase
 
     /// <summary>The diff view model for the selected file.</summary>
     public DiffViewModel Diff { get; }
+
+    /// <summary>The Repositories tab: the user's pinned repositories and their state.</summary>
+    public RepositoriesViewModel Repositories { get; }
+
+    /// <summary>Index of the tab on screen: 0 = Review, 1 = Repositories.</summary>
+    private const int RepositoriesTabIndex = 1;
+
+    /// <summary>Which top-level tab is showing.</summary>
+    [ObservableProperty]
+    private int _selectedTabIndex;
+
+    partial void OnSelectedTabIndexChanged(int value)
+    {
+        // Reading every tracked repository costs a Git handle each, so the tab pays
+        // for its first sweep when it is opened rather than at launch.
+        if (value == RepositoriesTabIndex)
+            _ = Repositories.EnsureLoadedAsync();
+    }
 
     /// <summary>The resolved base commit SHA for the current comparison, if any.</summary>
     private string? _currentBaseSha;

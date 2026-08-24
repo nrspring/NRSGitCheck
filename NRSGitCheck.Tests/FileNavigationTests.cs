@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using NRSGitCheck.Models;
@@ -38,7 +39,8 @@ public sealed class FileNavigationTests : IDisposable
             new StubGitCommands(),
             new StubFolderPicker(),
             new DiffViewModel(new StubDiff(), settings),
-            new StubTheme());
+            new StubTheme(),
+            Repositories(settings));
     }
 
     public void Dispose()
@@ -86,13 +88,15 @@ public sealed class FileNavigationTests : IDisposable
     [Fact]
     public async Task Navigation_reports_no_move_when_there_are_no_files()
     {
+        var settings = new StubSettings();
         var vm = new MainWindowViewModel(
-            new StubSettings(),
+            settings,
             new StubGit(_dir),                 // no changed files
             new StubGitCommands(),
             new StubFolderPicker(),
-            new DiffViewModel(new StubDiff(), new StubSettings()),
-            new StubTheme());
+            new DiffViewModel(new StubDiff(), settings),
+            new StubTheme(),
+            Repositories(settings));
 
         await vm.InitializeAsync();
 
@@ -103,6 +107,21 @@ public sealed class FileNavigationTests : IDisposable
 
     // --- stubs --------------------------------------------------------------
 
+    /// <summary>The Repositories tab is inert in these tests; it just has to exist.</summary>
+    private static RepositoriesViewModel Repositories(ISettingsService settings) =>
+        new(settings, new StubRepositoryStatus(), new StubGitCommands(), new StubFolderPicker());
+
+    private sealed class StubRepositoryStatus : IRepositoryStatusService
+    {
+        public NRSGitCheck.Models.RepositoryStatus Read(string path) =>
+            NRSGitCheck.Models.RepositoryStatus.Failed(path, "stub", "not read");
+
+        public Task<IReadOnlyList<NRSGitCheck.Models.RepositoryStatus>> ReadAllAsync(
+            IEnumerable<string> paths, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<NRSGitCheck.Models.RepositoryStatus>>(
+                paths.Select(Read).ToList());
+    }
+
     private sealed class StubSettings : ISettingsService
     {
         public AppSettings Settings { get; } = new();
@@ -110,6 +129,8 @@ public sealed class FileNavigationTests : IDisposable
         public void Save() { }
         public void AddRecentRepository(string repositoryPath) { }
         public void RemoveRecentRepository(string repositoryPath) { }
+        public bool AddTrackedRepository(string repositoryPath) => false;
+        public void RemoveTrackedRepository(string repositoryPath) { }
     }
 
     private sealed class StubGit : IGitService
@@ -160,6 +181,10 @@ public sealed class FileNavigationTests : IDisposable
             string workingDirectory, PullRequestReference pr, string? currentBranch,
             CancellationToken ct = default) =>
             Task.FromResult(new GitCommandResult(true, $"checked out pr-{pr.Number}"));
+
+        public Task<GitCommandResult> CheckoutBranchAsync(
+            string workingDirectory, string branch, CancellationToken ct = default) =>
+            Task.FromResult(new GitCommandResult(true, $"checked out {branch}"));
     }
 
     private sealed class StubFolderPicker : IFolderPickerService
@@ -212,7 +237,7 @@ public sealed class FileNavigationTests : IDisposable
         var diff = new DiffViewModel(new StubMultiHunkDiff(), settings);
         var vm = new MainWindowViewModel(
             settings, new StubGit(_dir, "a.txt", "b.txt"), new StubGitCommands(),
-            new StubFolderPicker(), diff, new StubTheme());
+            new StubFolderPicker(), diff, new StubTheme(), Repositories(settings));
 
         await vm.InitializeAsync();
 
@@ -292,7 +317,7 @@ public sealed class FileNavigationTests : IDisposable
         var diff = new DiffViewModel(new StubMultiHunkDiff(), settings);
         var vm = new MainWindowViewModel(
             settings, new StubGit(_dir, files), new StubGitCommands(),
-            new StubFolderPicker(), diff, new StubTheme());
+            new StubFolderPicker(), diff, new StubTheme(), Repositories(settings));
         return (vm, diff);
     }
 

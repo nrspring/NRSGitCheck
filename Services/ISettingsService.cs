@@ -25,4 +25,13 @@ public interface ISettingsService
 
     /// <summary>Removes a repository from the history and saves (FR-5).</summary>
     void RemoveRecentRepository(string repositoryPath);
+
+    /// <summary>
+    /// Pins a repository to the Repositories tab and saves. Returns false when the
+    /// path is already tracked, leaving the list untouched.
+    /// </summary>
+    bool AddTrackedRepository(string repositoryPath);
+
+    /// <summary>Unpins a repository from the Repositories tab and saves.</summary>
+    void RemoveTrackedRepository(string repositoryPath);
 }

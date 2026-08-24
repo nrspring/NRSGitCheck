@@ -23,6 +23,8 @@ public sealed class DiffViewModelTests
         public void Save() => SaveCount++;
         public void AddRecentRepository(string repositoryPath) { }
         public void RemoveRecentRepository(string repositoryPath) { }
+        public bool AddTrackedRepository(string repositoryPath) => false;
+        public void RemoveTrackedRepository(string repositoryPath) { }
     }
 
     private sealed class StubDiff : IDiffService

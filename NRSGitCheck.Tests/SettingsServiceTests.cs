@@ -126,4 +126,56 @@ public sealed class SettingsServiceTests : IDisposable
         Assert.True(byName.Find(r => r.Name == "exists")!.DirectoryExists);
         Assert.False(byName.Find(r => r.Name == "gone")!.DirectoryExists);
     }
+
+    [Fact]
+    public void Tracked_repos_round_trip_and_keep_insertion_order()
+    {
+        var a = Path.Combine(_dir, "repoA");
+        var b = Path.Combine(_dir, "repoB");
+
+        var svc = new SettingsService(_file);
+        Assert.True(svc.AddTrackedRepository(a));
+        Assert.True(svc.AddTrackedRepository(b));
+
+        var reopened = new SettingsService(_file).Settings.TrackedRepositories;
+        Assert.Equal(2, reopened.Count);
+        Assert.EndsWith("repoA", reopened[0].Path);
+        Assert.Equal("repoB", reopened[1].Name);
+    }
+
+    [Fact]
+    public void Adding_a_tracked_repo_twice_is_refused_rather_than_duplicated()
+    {
+        var a = Path.Combine(_dir, "repoA");
+
+        var svc = new SettingsService(_file);
+        Assert.True(svc.AddTrackedRepository(a));
+        Assert.False(svc.AddTrackedRepository(a + Path.DirectorySeparatorChar));
+
+        Assert.Single(svc.Settings.TrackedRepositories);
+    }
+
+    [Fact]
+    public void Remove_tracked_repo_persists()
+    {
+        var a = Path.Combine(_dir, "repoA");
+
+        var svc = new SettingsService(_file);
+        svc.AddTrackedRepository(a);
+        svc.RemoveTrackedRepository(a);
+
+        Assert.Empty(new SettingsService(_file).Settings.TrackedRepositories);
+    }
+
+    [Fact]
+    public void Tracked_and_recent_lists_are_independent()
+    {
+        var a = Path.Combine(_dir, "repoA");
+
+        var svc = new SettingsService(_file);
+        svc.AddTrackedRepository(a);
+
+        Assert.Empty(svc.Settings.RecentRepositories);
+        Assert.Single(svc.Settings.TrackedRepositories);
+    }
 }

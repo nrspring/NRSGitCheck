@@ -1,0 +1,176 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NRSGitCheck.ViewModels"
+             x:Class="NRSGitCheck.Views.RepositoriesView"
+             x:DataType="vm:RepositoriesViewModel">
+
+  <UserControl.Styles>
+    <!-- Small status pills: uncommitted work, unpushed commits, behind the remote. -->
+    <Style Selector="Border.badge">
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="7,2" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.badge > TextBlock">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel LastChildFill="True">
+
+    <!-- Toolbar: add / refresh / bulk pull, plus what just happened. -->
+    <Border DockPanel.Dock="Top"
+            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+            BorderThickness="0,0,0,1"
+            Padding="16,10">
+      <StackPanel Spacing="8">
+
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Command="{Binding AddRepositoryCommand}" Classes="accent" Padding="12,5">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="＋" />
+              <TextBlock Text="Add repository…" />
+            </StackPanel>
+          </Button>
+
+          <Button Content="Refresh" Command="{Binding RefreshAllCommand}" Padding="12,5" />
+
+          <Button Command="{Binding PullAllOnMainCommand}"
+                  Padding="12,5"
+                  ToolTip.Tip="Fast-forward main in every repository that currently has main checked out. Repositories on a feature branch are skipped.">
+            <TextBlock Text="Pull all on main" />
+          </Button>
+
+          <ProgressBar IsIndeterminate="True"
+                       IsVisible="{Binding IsBusy}"
+                       Width="110" Height="4"
+                       VerticalAlignment="Center"
+                       Margin="6,0,0,0" />
+        </StackPanel>
+
+        <TextBlock Text="{Binding Status}" Opacity="0.7" FontSize="12" TextWrapping="Wrap" />
+
+        <TextBlock Text="{Binding ErrorMessage}"
+                   IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                   Foreground="{DynamicResource SystemControlErrorTextForegroundBrush}"
+                   FontSize="12"
+                   TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <Panel>
+
+      <!-- Empty state -->
+      <StackPanel IsVisible="{Binding !HasRepositories}"
+                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                  Spacing="10" MaxWidth="460">
+        <TextBlock Text="No repositories yet" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" />
+        <TextBlock TextWrapping="Wrap" Opacity="0.7" TextAlignment="Center"
+                   Text="Add the repositories you work in and this tab will show each one's branch, whether it has uncommitted changes, and whether it has commits you haven't pushed." />
+      </StackPanel>
+
+      <ScrollViewer IsVisible="{Binding HasRepositories}" Padding="16,12">
+        <ItemsControl ItemsSource="{Binding Repositories}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:TrackedRepositoryViewModel">
+
+              <Border Margin="0,0,0,10"
+                      Padding="14,12"
+                      CornerRadius="6"
+                      Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                      BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                      BorderThickness="1">
+
+                <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
+
+                  <!-- Identity -->
+                  <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="15" />
+                    <TextBlock Text="{Binding Path}" FontSize="11" Opacity="0.55"
+                               TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}" />
+                  </StackPanel>
+
+                  <!-- Stop tracking. Removes the entry here only; nothing on disk is touched. -->
+                  <Button Grid.Row="0" Grid.Column="1"
+                          Content="✕"
+                          Command="{Binding RemoveCommand}"
+                          IsEnabled="{Binding !IsBusy}"
+                          Padding="9,2"
+                          VerticalAlignment="Top"
+                          ToolTip.Tip="Remove from this list (the repository itself is left alone)" />
+
+                  <!-- Unreadable repository: say why, and offer nothing that would fail. -->
+                  <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                             Margin="0,10,0,0"
+                             IsVisible="{Binding !IsValid}"
+                             Text="{Binding Error}"
+                             Foreground="{DynamicResource SystemControlErrorTextForegroundBrush}"
+                             FontSize="12"
+                             TextWrapping="Wrap" />
+
+                  <!-- Branch, state, actions -->
+                  <Grid Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                        Margin="0,10,0,0"
+                        IsVisible="{Binding IsValid}"
+                        ColumnDefinitions="Auto,*,Auto">
+
+                    <!-- Switching branch runs a plain checkout: Git carries changes
+                         over when it can, and refuses when they would be lost. -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                      <TextBlock Text="Branch" Opacity="0.6" FontSize="12" VerticalAlignment="Center" />
+                      <ComboBox ItemsSource="{Binding LocalBranches}"
+                                SelectedItem="{Binding SelectedBranch, Mode=TwoWay}"
+                                PlaceholderText="{Binding CurrentBranch}"
+                                IsEnabled="{Binding !IsBusy}"
+                                MinWidth="190"
+                                MaxDropDownHeight="360"
+                                VerticalAlignment="Center"
+                                ToolTip.Tip="Check out another local branch" />
+                    </StackPanel>
+
+                    <!-- State badges -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                                Margin="12,0" VerticalAlignment="Center">
+
+                      <Border Classes="badge" Background="#D98324" IsVisible="{Binding HasUncommittedChanges}">
+                        <TextBlock Text="{Binding UncommittedText}" />
+                      </Border>
+
+                      <Border Classes="badge" Background="#3B7DD8" IsVisible="{Binding HasUnpushedCommits}">
+                        <TextBlock Text="{Binding UnpushedText}" />
+                      </Border>
+
+                      <Border Classes="badge" Background="#6B7280" IsVisible="{Binding IsBehind}">
+                        <TextBlock Text="{Binding BehindText}" />
+                      </Border>
+
+                      <TextBlock Text="clean" FontSize="11" Opacity="0.5"
+                                 VerticalAlignment="Center"
+                                 IsVisible="{Binding IsClean}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                      <Button Content="{Binding SwitchToMainLabel}"
+                              Command="{Binding SwitchToMainCommand}"
+                              Padding="11,4"
+                              ToolTip.Tip="Check out this repository's main branch" />
+                      <Button Content="{Binding PullMainLabel}"
+                              Command="{Binding PullMainCommand}"
+                              Padding="11,4"
+                              ToolTip.Tip="Fetch and fast-forward main. Your working tree is left alone unless main is checked out." />
+                    </StackPanel>
+                  </Grid>
+                </Grid>
+              </Border>
+
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Panel>
+  </DockPanel>
+
+</UserControl>

@@ -34,6 +34,8 @@ public sealed class SyntaxHighlighterTests
         public void Save() { }
         public void AddRecentRepository(string repositoryPath) { }
         public void RemoveRecentRepository(string repositoryPath) { }
+        public bool AddTrackedRepository(string repositoryPath) => false;
+        public void RemoveTrackedRepository(string repositoryPath) { }
     }
 
     [Fact]

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using NRSGitCheck.Models;
@@ -58,8 +59,9 @@ public sealed class SettingsService : ISettingsService
             Settings = new AppSettings();
         }
 
-        // A deserialized payload may legally omit the list.
+        // A deserialized payload may legally omit either list.
         Settings.RecentRepositories ??= new();
+        Settings.TrackedRepositories ??= new();
     }
 
     public void Save()
@@ -123,6 +125,40 @@ public sealed class SettingsService : ISettingsService
 
         var normalized = NormalizePath(repositoryPath);
         var removed = Settings.RecentRepositories.RemoveAll(r =>
+            string.Equals(NormalizePath(r.Path), normalized, StringComparison.OrdinalIgnoreCase));
+
+        if (removed > 0)
+            Save();
+    }
+
+    public bool AddTrackedRepository(string repositoryPath)
+    {
+        if (string.IsNullOrWhiteSpace(repositoryPath))
+            return false;
+
+        var normalized = NormalizePath(repositoryPath);
+
+        if (Settings.TrackedRepositories.Any(r =>
+                string.Equals(NormalizePath(r.Path), normalized, StringComparison.OrdinalIgnoreCase)))
+            return false;
+
+        Settings.TrackedRepositories.Add(new TrackedRepository
+        {
+            Path = normalized,
+            Name = DeriveName(normalized),
+        });
+
+        Save();
+        return true;
+    }
+
+    public void RemoveTrackedRepository(string repositoryPath)
+    {
+        if (string.IsNullOrWhiteSpace(repositoryPath))
+            return;
+
+        var normalized = NormalizePath(repositoryPath);
+        var removed = Settings.TrackedRepositories.RemoveAll(r =>
             string.Equals(NormalizePath(r.Path), normalized, StringComparison.OrdinalIgnoreCase));
 
         if (removed > 0)

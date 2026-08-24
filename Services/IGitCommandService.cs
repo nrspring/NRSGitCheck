@@ -33,4 +33,13 @@ public interface IGitCommandService
     /// </summary>
     Task<GitCommandResult> CheckoutPullRequestAsync(
         string workingDirectory, PullRequestReference pr, string? currentBranch, CancellationToken ct = default);
+
+    /// <summary>
+    /// Checks out an existing local branch. This is a plain checkout: Git carries
+    /// uncommitted changes across when it safely can, and refuses — returning its
+    /// own message as a failed result — when the switch would overwrite them.
+    /// Nothing is stashed, merged, or discarded on the user's behalf.
+    /// </summary>
+    Task<GitCommandResult> CheckoutBranchAsync(
+        string workingDirectory, string branch, CancellationToken ct = default);
 }

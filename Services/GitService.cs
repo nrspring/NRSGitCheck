@@ -523,18 +523,7 @@ public sealed class GitService : IGitService, IDisposable
     /// is one, otherwise the remote-tracking equivalent so the comparison still works
     /// in a repo that has never checked main out locally. Returns null if neither exists.
     /// </summary>
-    private static Branch? DetectMainBranch(Repository repo)
-    {
-        foreach (var name in new[] { "main", "master" })
-            if (FindLocalBranch(repo, name) is { } local)
-                return local;
-
-        foreach (var name in new[] { "origin/main", "origin/master" })
-            if (repo.Branches.FirstOrDefault(b => b.IsRemote && b.FriendlyName == name) is { } remote)
-                return remote;
-
-        return null;
-    }
+    private static Branch? DetectMainBranch(Repository repo) => MainBranchDetector.Detect(repo);
 
     /// <summary>First line of a commit message, clipped so it fits the picker.</summary>
     private static string Summarize(Commit commit)

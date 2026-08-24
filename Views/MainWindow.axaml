@@ -43,7 +43,7 @@
     <!-- Main tabs. The theme selector floats over the strip so it stays reachable
          from every tab (FR-28). -->
     <Panel>
-      <TabControl Name="MainTabs" Padding="0">
+      <TabControl Name="MainTabs" Padding="0" SelectedIndex="{Binding SelectedTabIndex}">
 
         <TabItem Header="Review">
           <DockPanel LastChildFill="True">
@@ -308,9 +308,9 @@
           </DockPanel>
         </TabItem>
 
-        <!-- Repositories: intentionally empty for now. -->
+        <!-- Repositories: the user's pinned repositories and their state. -->
         <TabItem Header="Repositories">
-          <Panel />
+          <views:RepositoriesView DataContext="{Binding Repositories}" />
         </TabItem>
 
       </TabControl>

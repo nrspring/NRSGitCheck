@@ -5,10 +5,13 @@ to compare against, and browse the diff with syntax highlighting, word-level cha
 emphasis, side-by-side or inline layouts, and progressive rendering that stays smooth
 even on very large files.
 
-NRSGitCheck reads your repository and never modifies your work. The single exception
-is the **Pull main** button, which fetches and fast-forwards your main branch on
-demand; it is fast-forward only and leaves your working tree untouched unless main
-itself is checked out.
+NRSGitCheck reads your repository and never modifies your work. The only things it
+writes are ones you press a button for: **Pull main**, which fetches and
+fast-forwards your main branch (fast-forward only, and it leaves your working tree
+untouched unless main is checked out), and the branch switches on the
+**Repositories** tab, which are plain checkouts — Git itself refuses any switch that
+would overwrite uncommitted work. Nothing is ever stashed, merged, or discarded on
+your behalf.
 
 ![Side-by-side diff with syntax and word-level highlighting](docs/screenshots/side-by-side.png)
 
@@ -20,6 +23,11 @@ itself is checked out.
 - **Commit picker** — a dropdown of the commits on your branch (newest first, back to
   the branch point) so you can widen the diff one commit at a time.
 - **Pull main** — fetch and fast-forward `main` without leaving your feature branch.
+- **Repositories tab** — keep a list of the repositories you work in and see, at a
+  glance, which branch each one is on and whether it has uncommitted changes or
+  unpushed commits. Switch any of them to another local branch or to `main`, pull
+  `main` in one, or pull `main` in every repository that currently has it checked
+  out. The list is stored with your settings, so it survives restarts.
 - **Review a pull request** — paste a PR link, and it is fetched onto a local
   `pr-N` branch, checked out, and compared against `main` — the same diff GitHub
   shows on the PR's Files-changed tab.
@@ -133,8 +141,9 @@ syntax colors are applied per hunk as it arrives.
 - [.NET 10](https://dotnet.microsoft.com/) / C#
 - [Avalonia](https://avaloniaui.net/) — cross-platform UI
 - [LibGit2Sharp](https://github.com/libgit2/libgit2sharp) — read-only Git access
-- The `git` CLI — used only for **Pull main**, so your existing credential helper
-  handles authentication and the app never touches your secrets
+- The `git` CLI — used for the write actions (**Pull main**, PR checkout, branch
+  switches), so your existing credential helper handles authentication and the app
+  never touches your secrets
 - [TextMateSharp](https://github.com/danipen/TextMateSharp) — syntax highlighting
 - [CommunityToolkit.Mvvm](https://learn.microsoft.com/dotnet/communitytoolkit/mvvm/) — MVVM
 - xUnit for tests

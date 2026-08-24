@@ -31,4 +31,10 @@ public sealed class AppSettings
 
     /// <summary>Recently opened repositories, most-recent first (FR-3, FR-4).</summary>
     public List<RecentRepository> RecentRepositories { get; set; } = new();
+
+    /// <summary>
+    /// Repositories pinned to the Repositories tab, in the order the user added
+    /// them. Curated by hand, so nothing is evicted automatically.
+    /// </summary>
+    public List<TrackedRepository> TrackedRepositories { get; set; } = new();
 }
