@@ -73,8 +73,33 @@
                   <!-- Identity -->
                   <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="15" />
-                    <TextBlock Text="{Binding Path}" FontSize="11" Opacity="0.55"
-                               TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                      <!-- Capped so a deep path trims instead of pushing the copy
+                           button out of the card; the tooltip still has all of it. -->
+                      <TextBlock Text="{Binding Path}" FontSize="11" Opacity="0.55"
+                                 VerticalAlignment="Center"
+                                 MaxWidth="560"
+                                 TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}" />
+
+                      <!-- Copy the path. Drawn rather than set in a glyph font, so it
+                           renders the same wherever the app runs. -->
+                      <Button Classes="ghost"
+                              Command="{Binding CopyPathCommand}"
+                              Padding="4"
+                              VerticalAlignment="Center"
+                              ToolTip.Tip="Copy this path to the clipboard">
+                        <Canvas Width="13" Height="13">
+                          <Rectangle Canvas.Left="0" Canvas.Top="0" Width="9" Height="9"
+                                     RadiusX="2" RadiusY="2"
+                                     Stroke="{DynamicResource AppMutedText}" StrokeThickness="1.1" />
+                          <Rectangle Canvas.Left="4" Canvas.Top="4" Width="9" Height="9"
+                                     RadiusX="2" RadiusY="2"
+                                     Fill="{DynamicResource AppSurface}"
+                                     Stroke="{DynamicResource AppMutedText}" StrokeThickness="1.1" />
+                        </Canvas>
+                      </Button>
+                    </StackPanel>
                   </StackPanel>
 
                   <!-- Stop tracking. Removes the entry here only; nothing on disk is touched. -->

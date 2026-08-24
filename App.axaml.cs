@@ -54,6 +54,7 @@ public partial class App : Application
         services.AddSingleton<IDiffService, DiffService>();
         services.AddSingleton<IThemeService, ThemeService>();
         services.AddSingleton<IFolderPickerService, FolderPickerService>();
+        services.AddSingleton<IClipboardService, ClipboardService>();
 
         // Views
         services.AddTransient<MainWindow>();

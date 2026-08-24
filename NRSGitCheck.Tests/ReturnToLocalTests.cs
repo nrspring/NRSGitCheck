@@ -129,7 +129,7 @@ public sealed class ReturnToLocalTests : IDisposable
             new StubTheme(),
             new RepositoriesViewModel(
                 settings, new StubRepositoryStatus(), new RecordingGitCommands(),
-                new StubFolderPicker(), new RoslynExpressionEvaluator()));
+                new StubFolderPicker(), new RoslynExpressionEvaluator(), new StubClipboard()));
 
         await vm.InitializeAsync();
         return vm;
@@ -220,6 +220,11 @@ public sealed class ReturnToLocalTests : IDisposable
         public void RemoveRecentRepository(string repositoryPath) { }
         public bool AddTrackedRepository(string repositoryPath) => false;
         public void RemoveTrackedRepository(string repositoryPath) { }
+    }
+
+    private sealed class StubClipboard : IClipboardService
+    {
+        public Task<bool> SetTextAsync(string? text) => Task.FromResult(true);
     }
 
     private sealed class StubFolderPicker : IFolderPickerService

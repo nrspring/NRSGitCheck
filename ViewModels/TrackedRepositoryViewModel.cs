@@ -18,6 +18,7 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
     private readonly RepositoriesViewModel _owner;
     private readonly IGitCommandService _gitCommands;
     private readonly IRepositoryStatusService _statusService;
+    private readonly IClipboardService _clipboard;
 
     /// <summary>Guards the branch picker while a refresh writes the checked-out branch into it.</summary>
     private bool _applyingStatus;
@@ -26,11 +27,13 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
         RepositoriesViewModel owner,
         IGitCommandService gitCommands,
         IRepositoryStatusService statusService,
+        IClipboardService clipboard,
         TrackedRepository model)
     {
         _owner = owner;
         _gitCommands = gitCommands;
         _statusService = statusService;
+        _clipboard = clipboard;
 
         Path = model.Path;
         _name = string.IsNullOrWhiteSpace(model.Name) ? model.Path : model.Name;
@@ -296,6 +299,16 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
 
     [RelayCommand]
     private void Remove() => _owner.Remove(this);
+
+    /// <summary>Puts this repository's path on the clipboard.</summary>
+    [RelayCommand]
+    private async Task CopyPath()
+    {
+        if (await _clipboard.SetTextAsync(Path))
+            _owner.Report($"Copied {Path}");
+        else
+            _owner.ReportError("Could not copy the path to the clipboard.");
+    }
 
     private void NotifyCommands()
     {
