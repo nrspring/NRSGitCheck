@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using NRSGitCheck.Models;
@@ -35,6 +35,8 @@ public sealed class SyntaxHighlighterTests
         public ResolvedComparison ResolveComparison(ComparisonMode mode, string? a, string? b, string? commitSha = null) => throw new System.NotSupportedException();
         public System.Collections.Generic.IReadOnlyList<CommitInfo> GetBranchCommits(string? mainBranch, int maxCount = 200) => throw new System.NotSupportedException();
         public IReadOnlyList<FileChange> GetChanges(string baseCommitSha) => throw new System.NotSupportedException();
+        public int GetUncommittedChangeCount() => 0;
+
         public IReadOnlyDictionary<string, FileStats> GetChangeStats(string baseCommitSha) => throw new System.NotSupportedException();
     }
 

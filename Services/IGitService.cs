@@ -1,4 +1,4 @@
-using NRSGitCheck.Models;
+﻿using NRSGitCheck.Models;
 
 namespace NRSGitCheck.Services;
 
@@ -50,6 +50,14 @@ public interface IGitService
     /// are omitted (already counted by <see cref="GetChanges"/>).
     /// </summary>
     System.Collections.Generic.IReadOnlyDictionary<string, FileStats> GetChangeStats(string baseCommitSha);
+
+    /// <summary>
+    /// Counts uncommitted work in the current working tree: staged and unstaged
+    /// changes plus untracked files. Checking a pull request out moves the working
+    /// tree, so the toolbar uses this to keep that action out of reach while there
+    /// is local work that a checkout could disturb.
+    /// </summary>
+    int GetUncommittedChangeCount();
 
     /// <summary>
     /// Retrieves the base (commit) and new (working-tree) text for a changed file,

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -164,6 +164,8 @@ public sealed class FileNavigationTests : IDisposable
                 list.Add(new FileChange(p, null, ChangeKind.Modified, 1, 1, false));
             return list;
         }
+
+        public int GetUncommittedChangeCount() => 0;
 
         public IReadOnlyDictionary<string, FileStats> GetChangeStats(string baseCommitSha) =>
             new Dictionary<string, FileStats>();

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using NRSGitCheck.Models;
@@ -26,6 +26,8 @@ public sealed class DiffServiceTests
         public ResolvedComparison ResolveComparison(ComparisonMode mode, string? otherBranch, string? parentBranch, string? commitSha = null) => throw new NotSupportedException();
         public IReadOnlyList<CommitInfo> GetBranchCommits(string? mainBranch, int maxCount = 200) => throw new NotSupportedException();
         public IReadOnlyList<FileChange> GetChanges(string baseCommitSha) => throw new NotSupportedException();
+        public int GetUncommittedChangeCount() => 0;
+
         public IReadOnlyDictionary<string, FileStats> GetChangeStats(string baseCommitSha) => throw new NotSupportedException();
     }
 

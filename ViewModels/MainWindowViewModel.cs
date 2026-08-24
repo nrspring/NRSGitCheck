@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -320,7 +320,57 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnPullRequestInputChanged(string? value) =>
         PullRequestError = null; // stop showing an error about text they've since edited
 
-    private bool CanOpenPullRequestDialog() => HasRepo && HasRemote;
+    /// <summary>
+    /// Number of uncommitted changes in the working tree — staged, unstaged, and
+    /// untracked. Refreshed alongside the change list, because checking a pull
+    /// request out would move the working tree out from under them.
+    /// </summary>
+    [ObservableProperty]
+    private int _localChangeCount;
+
+    partial void OnLocalChangeCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(HasLocalChanges));
+        OnPropertyChanged(nameof(LocalChangesBadgeText));
+        OnPropertyChanged(nameof(ReviewPullRequestToolTip));
+        OpenPullRequestDialogCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Whether the working tree has work that a pull request checkout could disturb.</summary>
+    public bool HasLocalChanges => LocalChangeCount > 0;
+
+    /// <summary>The badge beside a disabled "Review PR" button, saying what is in the way.</summary>
+    public string LocalChangesBadgeText => LocalChangeCount == 1
+        ? "1 local change"
+        : $"{LocalChangeCount} local changes";
+
+    /// <summary>
+    /// What "Review PR" offers, or why it cannot be taken. The button itself is
+    /// disabled when blocked, and a disabled control shows no tip of its own, so
+    /// this hangs on the wrapper around it.
+    /// </summary>
+    public string ReviewPullRequestToolTip => HasLocalChanges
+        ? $"Commit, stash, or discard your {LocalChangesBadgeText} first — checking a pull request out would move your working tree."
+        : "Paste a pull request link to fetch it and switch to it";
+
+    /// <summary>
+    /// Reads the working tree's uncommitted count on a worker thread. Best-effort:
+    /// a failure leaves the last known count rather than blocking the review on a
+    /// number nobody could read.
+    /// </summary>
+    private async Task UpdateLocalChangeCountAsync()
+    {
+        try
+        {
+            LocalChangeCount = await Task.Run(_git.GetUncommittedChangeCount);
+        }
+        catch
+        {
+            // ignored: the count is an affordance, not a correctness guarantee
+        }
+    }
+
+    private bool CanOpenPullRequestDialog() => HasRepo && HasRemote && !HasLocalChanges;
 
     [RelayCommand(CanExecute = nameof(CanOpenPullRequestDialog))]
     private void OpenPullRequestDialog()
@@ -613,6 +663,11 @@ public partial class MainWindowViewModel : ViewModelBase
                 return (resolved, Changes: (IReadOnlyList<FileChange>?)changes, Signature: SignatureFor(resolved.Sha, changes));
             });
 
+            // Uncommitted work can appear without the compared change set moving at
+            // all (a file edited while comparing against another branch), so this is
+            // applied before the no-op check bows out.
+            await UpdateLocalChangeCountAsync();
+
             if (result.Signature == _lastChangeSignature)
                 return; // nothing new since the last check
 
@@ -769,6 +824,10 @@ public partial class MainWindowViewModel : ViewModelBase
             var commit = SelectedCommit?.Sha;
 
             var resolved = await Task.Run(() => _git.ResolveComparison(mode, branch, parent, commit));
+
+            // The working tree's own state is independent of the comparison target,
+            // and gates "Review PR" whichever mode is showing.
+            await UpdateLocalChangeCountAsync();
 
             ResolvedTargetLabel = resolved.Label;
             Status = resolved.Found

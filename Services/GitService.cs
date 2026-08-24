@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
@@ -252,6 +252,36 @@ public sealed class GitService : IGitService, IDisposable
                 .OrderBy(f => f.Path, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
+    }
+
+    /// <summary>
+    /// Untracked directories are reported as a single entry rather than walked: the
+    /// caller only needs "is there uncommitted work", and recursing costs real time
+    /// on a tree with a large untracked build output folder.
+    /// </summary>
+    private static readonly StatusOptions UncommittedStatusOptions = new()
+    {
+        IncludeUntracked = true,
+        RecurseUntrackedDirs = false,
+        IncludeIgnored = false,
+        ExcludeSubmodules = true,
+    };
+
+    public int GetUncommittedChangeCount()
+    {
+        string? path;
+        lock (_gate)
+            path = _repoPath;
+
+        if (string.IsNullOrEmpty(path))
+            return 0;
+
+        // Own handle, for the same reason as GetChangeStats: this runs on a worker
+        // thread alongside the interactive reads on the shared one.
+        using var repo = new Repository(path);
+        return repo.RetrieveStatus(UncommittedStatusOptions).Count(e =>
+            e.State != FileStatus.Unaltered &&
+            !e.State.HasFlag(FileStatus.Ignored));
     }
 
     public IReadOnlyDictionary<string, FileStats> GetChangeStats(string baseCommitSha)

@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui"
+﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:NRSGitCheck.ViewModels"
         xmlns:models="using:NRSGitCheck.Models"
@@ -133,12 +133,24 @@
 
                 <Button Content="Refresh" Command="{Binding RefreshCommand}" VerticalAlignment="Center" />
 
-                <Button Content="Review PR…"
-                        Command="{Binding OpenPullRequestDialogCommand}"
-                        IsVisible="{Binding !IsReviewingPullRequest}"
-                        VerticalAlignment="Center"
-                        Margin="6,0,0,0"
-                        ToolTip.Tip="Paste a pull request link to fetch it and switch to it" />
+                <!-- The tip hangs on the wrapper, not the button: a disabled button
+                     takes no pointer input, so its own tip could never explain why it
+                     is disabled. The badge says the same thing without hovering. -->
+                <StackPanel Orientation="Horizontal" Spacing="6"
+                            IsVisible="{Binding !IsReviewingPullRequest}"
+                            VerticalAlignment="Center"
+                            Margin="6,0,0,0"
+                            ToolTip.Tip="{Binding ReviewPullRequestToolTip}">
+                  <Button Content="Review PR…"
+                          Command="{Binding OpenPullRequestDialogCommand}"
+                          VerticalAlignment="Center" />
+                  <Border Classes="badge"
+                          Background="{DynamicResource AppWarnFill}"
+                          IsVisible="{Binding HasLocalChanges}">
+                    <TextBlock Text="{Binding LocalChangesBadgeText}"
+                               Foreground="{DynamicResource AppWarnText}" />
+                  </Border>
+                </StackPanel>
 
                 <!-- While a PR is checked out, the useful move is getting back out of it. -->
                 <Button Content="Local"

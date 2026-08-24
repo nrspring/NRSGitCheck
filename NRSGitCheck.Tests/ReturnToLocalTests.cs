@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -111,10 +111,41 @@ public sealed class ReturnToLocalTests : IDisposable
         Assert.Equal(new[] { "master" }, commands.CheckedOut);
     }
 
+    [Fact]
+    public async Task A_clean_tree_offers_the_pull_request_review()
+    {
+        var vm = await OpenOn("feature/login");
+
+        Assert.False(vm.HasLocalChanges);
+        Assert.True(vm.OpenPullRequestDialogCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task Local_changes_block_the_pull_request_review()
+    {
+        var vm = await OpenOn("feature/login", uncommitted: 3);
+
+        Assert.True(vm.HasLocalChanges);
+        Assert.False(vm.OpenPullRequestDialogCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task A_blocked_review_says_what_is_in_the_way()
+    {
+        var vm = await OpenOn("feature/login", uncommitted: 1);
+
+        Assert.Equal("1 local change", vm.LocalChangesBadgeText);
+        Assert.Contains("1 local change", vm.ReviewPullRequestToolTip);
+
+        var many = await OpenOn("feature/login", uncommitted: 2);
+        Assert.Equal("2 local changes", many.LocalChangesBadgeText);
+    }
+
     // --- harness ------------------------------------------------------------
 
     private async Task<MainWindowViewModel> OpenOn(
-        string branch, RecordingGitCommands? commands = null, string mainBranch = "main")
+        string branch, RecordingGitCommands? commands = null, string mainBranch = "main",
+        int uncommitted = 0)
     {
         var settings = new StubSettings();
         settings.Settings.ReopenLastRepoOnLaunch = true;
@@ -122,7 +153,7 @@ public sealed class ReturnToLocalTests : IDisposable
 
         var vm = new MainWindowViewModel(
             settings,
-            new StubGit(_dir, branch, mainBranch),
+            new StubGit(_dir, branch, mainBranch, uncommitted),
             commands ?? new RecordingGitCommands(),
             new StubFolderPicker(),
             new DiffViewModel(new StubDiff(), settings, new StubClipboard()),
@@ -168,13 +199,17 @@ public sealed class ReturnToLocalTests : IDisposable
         private readonly string _dir;
         private readonly string _branch;
         private readonly string _mainBranch;
+        private readonly int _uncommitted;
 
-        public StubGit(string dir, string branch, string mainBranch)
+        public StubGit(string dir, string branch, string mainBranch, int uncommitted = 0)
         {
             _dir = dir;
             _branch = branch;
             _mainBranch = mainBranch;
+            _uncommitted = uncommitted;
         }
+
+        public int GetUncommittedChangeCount() => _uncommitted;
 
         public RepositorySnapshot OpenRepository(string path) => new(
             _dir, "repo", _branch, false, false, "abc1234",
