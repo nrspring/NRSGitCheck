@@ -85,6 +85,42 @@ public sealed class GitCommandServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Creating_a_branch_makes_it_and_checks_it_out()
+    {
+        var dir = InitRepo("create");
+        Commit(dir, "a.txt", "one");
+
+        var result = await _service.CreateBranchAsync(dir, "nrs/20260824-sa-1234-thing");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("nrs/20260824-sa-1234-thing", CurrentBranch(dir));
+    }
+
+    [Fact]
+    public async Task Creating_a_branch_that_already_exists_fails()
+    {
+        var dir = InitRepo("duplicate");
+        Commit(dir, "a.txt", "one");
+        CreateBranch(dir, "feature");
+
+        var result = await _service.CreateBranchAsync(dir, "feature");
+
+        Assert.False(result.Success);
+        Assert.NotEmpty(result.Message);
+    }
+
+    [Fact]
+    public async Task Creating_a_branch_with_an_illegal_name_fails()
+    {
+        var dir = InitRepo("illegal");
+        Commit(dir, "a.txt", "one");
+
+        var result = await _service.CreateBranchAsync(dir, "bad..name");
+
+        Assert.False(result.Success);
+    }
+
+    [Fact]
     public async Task Checking_out_a_branch_that_does_not_exist_fails()
     {
         var dir = InitRepo("missing-branch");

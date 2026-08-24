@@ -278,6 +278,12 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
 
     // --- Row actions --------------------------------------------------------
 
+    private bool CanCreateBranch() => !IsBusy && IsValid;
+
+    /// <summary>Opens the create-branch dialog for this repository.</summary>
+    [RelayCommand(CanExecute = nameof(CanCreateBranch))]
+    private void NewBranch() => _owner.BeginNewBranch(this);
+
     [RelayCommand]
     private Task Refresh() => RefreshAsync();
 
@@ -295,5 +301,6 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
     {
         SwitchToMainCommand.NotifyCanExecuteChanged();
         PullMainCommand.NotifyCanExecuteChanged();
+        NewBranchCommand.NotifyCanExecuteChanged();
     }
 }

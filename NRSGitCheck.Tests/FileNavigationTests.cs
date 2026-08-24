@@ -109,7 +109,8 @@ public sealed class FileNavigationTests : IDisposable
 
     /// <summary>The Repositories tab is inert in these tests; it just has to exist.</summary>
     private static RepositoriesViewModel Repositories(ISettingsService settings) =>
-        new(settings, new StubRepositoryStatus(), new StubGitCommands(), new StubFolderPicker());
+        new(settings, new StubRepositoryStatus(), new StubGitCommands(), new StubFolderPicker(),
+            new RoslynExpressionEvaluator());
 
     private sealed class StubRepositoryStatus : IRepositoryStatusService
     {
@@ -185,6 +186,10 @@ public sealed class FileNavigationTests : IDisposable
         public Task<GitCommandResult> CheckoutBranchAsync(
             string workingDirectory, string branch, CancellationToken ct = default) =>
             Task.FromResult(new GitCommandResult(true, $"checked out {branch}"));
+
+        public Task<GitCommandResult> CreateBranchAsync(
+            string workingDirectory, string branch, CancellationToken ct = default) =>
+            Task.FromResult(new GitCommandResult(true, $"created {branch}"));
     }
 
     private sealed class StubFolderPicker : IFolderPickerService

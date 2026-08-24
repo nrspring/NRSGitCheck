@@ -62,6 +62,7 @@ public sealed class SettingsService : ISettingsService
         // A deserialized payload may legally omit either list.
         Settings.RecentRepositories ??= new();
         Settings.TrackedRepositories ??= new();
+        Settings.BranchTokenDefaults ??= new();
     }
 
     public void Save()

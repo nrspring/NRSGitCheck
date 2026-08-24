@@ -42,4 +42,12 @@ public interface IGitCommandService
     /// </summary>
     Task<GitCommandResult> CheckoutBranchAsync(
         string workingDirectory, string branch, CancellationToken ct = default);
+
+    /// <summary>
+    /// Creates a branch at the current HEAD and checks it out (<c>git checkout -b</c>).
+    /// Git rejects a name that already exists or is not a legal ref, and that refusal
+    /// comes back as a failed result.
+    /// </summary>
+    Task<GitCommandResult> CreateBranchAsync(
+        string workingDirectory, string branch, CancellationToken ct = default);
 }

@@ -32,17 +32,41 @@ public partial class RepositoriesViewModel : ViewModelBase
         ISettingsService settings,
         IRepositoryStatusService statusService,
         IGitCommandService gitCommands,
-        IFolderPickerService folderPicker)
+        IFolderPickerService folderPicker,
+        IExpressionEvaluator evaluator)
     {
         _settings = settings;
         _statusService = statusService;
         _gitCommands = gitCommands;
         _folderPicker = folderPicker;
 
+        NewBranch = new NewBranchViewModel(settings, evaluator, gitCommands);
+        NewBranch.Created += OnBranchCreated;
+        BranchPattern = new BranchPatternViewModel(settings, evaluator);
+
         foreach (var tracked in _settings.Settings.TrackedRepositories)
             Repositories.Add(CreateRow(tracked));
 
         HasRepositories = Repositories.Count > 0;
+    }
+
+    /// <summary>The create-branch dialog, shown over the list.</summary>
+    public NewBranchViewModel NewBranch { get; }
+
+    /// <summary>The branch-pattern settings dialog.</summary>
+    public BranchPatternViewModel BranchPattern { get; }
+
+    /// <summary>Opens the create-branch dialog for one repository.</summary>
+    public void BeginNewBranch(TrackedRepositoryViewModel repository) =>
+        _ = NewBranch.OpenAsync(repository);
+
+    [RelayCommand]
+    private void EditBranchPattern() => BranchPattern.Open();
+
+    private void OnBranchCreated(string message)
+    {
+        Report(message);
+        NotifyBulkCommands();
     }
 
     /// <summary>The pinned repositories, in the order they were added.</summary>

@@ -168,6 +168,20 @@ public sealed class SettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public void Branch_pattern_and_token_defaults_round_trip()
+    {
+        var svc = new SettingsService(_file);
+        svc.Settings.NewBranchPattern = "nrs/{Date}-sa-{SANumber}-{description}";
+        svc.Settings.BranchTokenDefaults["Date"] = "DateTime.Now.ToString(\"yyyyMMdd\")";
+        svc.Save();
+
+        var reopened = new SettingsService(_file).Settings;
+
+        Assert.Equal("nrs/{Date}-sa-{SANumber}-{description}", reopened.NewBranchPattern);
+        Assert.Equal("DateTime.Now.ToString(\"yyyyMMdd\")", reopened.BranchTokenDefaults["Date"]);
+    }
+
+    [Fact]
     public void Tracked_and_recent_lists_are_independent()
     {
         var a = Path.Combine(_dir, "repoA");

@@ -125,6 +125,20 @@ public sealed class GitCommandService : IGitCommandService
             : checkout;
     }
 
+    public async Task<GitCommandResult> CreateBranchAsync(
+        string workingDirectory, string branch, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(workingDirectory))
+            return new GitCommandResult(false, "No repository path.");
+        if (string.IsNullOrWhiteSpace(branch))
+            return new GitCommandResult(false, "Enter a branch name.");
+
+        var create = await RunAsync(workingDirectory, ct, "checkout", "-b", branch);
+        return create.Success
+            ? new GitCommandResult(true, $"Created and checked out {branch}.")
+            : create;
+    }
+
     /// <summary>Recognizes Git's refusal to move a ref backwards or sideways.</summary>
     private static bool IsNonFastForward(string message) =>
         message.Contains("non-fast-forward", StringComparison.OrdinalIgnoreCase) ||

@@ -4,6 +4,7 @@
              x:Class="NRSGitCheck.Views.RepositoriesView"
              x:DataType="vm:RepositoriesViewModel">
 
+  <Panel>
   <DockPanel LastChildFill="True">
 
     <!-- Toolbar: add / refresh / bulk pull, plus what just happened. -->
@@ -27,6 +28,10 @@
                   ToolTip.Tip="Fast-forward the integration branch in every repository that currently has main (or master) checked out. Repositories on a feature branch are skipped.">
             <TextBlock Text="Pull all on main" />
           </Button>
+
+          <Button Content="Branch pattern…"
+                  Command="{Binding EditBranchPatternCommand}"
+                  ToolTip.Tip="Define the {Token} pattern new branch names are built from, and the expression that fills each token" />
 
           <ProgressBar IsIndeterminate="True"
                        IsVisible="{Binding IsBusy}"
@@ -136,6 +141,9 @@
                     </StackPanel>
 
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                      <Button Content="New branch…"
+                              Command="{Binding NewBranchCommand}"
+                              ToolTip.Tip="Create a branch here, starting from the checked-out branch" />
                       <Button Content="{Binding SwitchToMainLabel}"
                               Command="{Binding SwitchToMainCommand}"
                               ToolTip.Tip="Check out this repository's main branch" />
@@ -153,5 +161,159 @@
       </ScrollViewer>
     </Panel>
   </DockPanel>
+
+  <!-- Create-branch dialog: one field per token in the pattern, seeded from that
+       token's expression and editable before the branch is created. -->
+  <Border x:DataType="vm:NewBranchViewModel"
+          DataContext="{Binding NewBranch}"
+          IsVisible="{Binding IsVisible}"
+          Background="#99000000">
+    <Border Classes="card" Padding="24" MinWidth="560" MaxWidth="680"
+            HorizontalAlignment="Center" VerticalAlignment="Center">
+      <StackPanel Spacing="14">
+
+        <StackPanel Spacing="3">
+          <TextBlock Text="New branch" FontSize="18" FontWeight="SemiBold" />
+          <StackPanel Orientation="Horizontal" Spacing="5">
+            <TextBlock Text="in" Opacity="0.6" />
+            <TextBlock Text="{Binding RepositoryName}" FontWeight="SemiBold" />
+            <TextBlock Text="from" Opacity="0.6" />
+            <TextBlock Text="{Binding SourceBranch}" FontFamily="Cascadia Code,Consolas,monospace" />
+          </StackPanel>
+        </StackPanel>
+
+        <!-- Pattern configured: one field per token. -->
+        <StackPanel Spacing="10" IsVisible="{Binding HasPattern}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="Pattern" Opacity="0.6" FontSize="12" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding Pattern}" FontSize="12" Opacity="0.8"
+                       FontFamily="Cascadia Code,Consolas,monospace" VerticalAlignment="Center" />
+          </StackPanel>
+
+          <ItemsControl ItemsSource="{Binding Tokens}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:BranchTokenInputViewModel">
+                <Grid ColumnDefinitions="150,*" Margin="0,0,0,8">
+                  <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Center"
+                             Opacity="0.8" TextTrimming="CharacterEllipsis" Margin="0,0,10,0" />
+                  <StackPanel Grid.Column="1" Spacing="3">
+                    <TextBox Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <!-- The token's default expression failed; the field just starts empty. -->
+                    <TextBlock Text="{Binding SeedError}"
+                               IsVisible="{Binding HasSeedError}"
+                               FontSize="11"
+                               Foreground="{DynamicResource SystemControlErrorTextForegroundBrush}"
+                               TextWrapping="Wrap" />
+                  </StackPanel>
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <Grid ColumnDefinitions="150,*">
+            <TextBlock Grid.Column="0" Text="Branch name" Opacity="0.6" FontSize="12"
+                       VerticalAlignment="Center" Margin="0,0,10,0" />
+            <TextBlock Grid.Column="1" Text="{Binding BranchName}" FontWeight="SemiBold"
+                       FontFamily="Cascadia Code,Consolas,monospace" TextWrapping="Wrap"
+                       VerticalAlignment="Center" />
+          </Grid>
+        </StackPanel>
+
+        <!-- No pattern configured: just take a name. -->
+        <StackPanel Spacing="6" IsVisible="{Binding !HasPattern}">
+          <TextBox Text="{Binding BranchName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                   Watermark="feature/my-change"
+                   FontFamily="Cascadia Code,Consolas,monospace" />
+          <TextBlock Opacity="0.55" FontSize="11" TextWrapping="Wrap"
+                     Text="Set up a pattern under Branch pattern to have these names filled in for you." />
+        </StackPanel>
+
+        <TextBlock Opacity="0.5" FontSize="11" TextWrapping="Wrap"
+                   Text="Spaces become dashes, and characters Git will not accept in a ref are dropped. The branch starts at the checked-out commit and is checked out." />
+
+        <TextBlock Text="{Binding Error}"
+                   IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                   Foreground="{DynamicResource SystemControlErrorTextForegroundBrush}"
+                   TextWrapping="Wrap" />
+
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+          <Button Content="Cancel" Command="{Binding CancelCommand}" IsEnabled="{Binding !IsBusy}" />
+          <Button Content="Create branch" Command="{Binding CreateCommand}" Classes="accent" IsDefault="True" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+  </Border>
+
+  <!-- Branch-pattern settings: the pattern, and the C# expression behind each token. -->
+  <Border x:DataType="vm:BranchPatternViewModel"
+          DataContext="{Binding BranchPattern}"
+          IsVisible="{Binding IsVisible}"
+          Background="#99000000">
+    <Border Classes="card" Padding="24" MinWidth="640" MaxWidth="820"
+            HorizontalAlignment="Center" VerticalAlignment="Center">
+      <StackPanel Spacing="14">
+
+        <TextBlock Text="Branch name pattern" FontSize="18" FontWeight="SemiBold" />
+        <TextBlock Opacity="0.7" TextWrapping="Wrap"
+                   Text="Write the shape of a branch name, putting each part you fill in yourself in braces &#8212; for example nrs/{Date}-sa-{SANumber}-{description}. Every placeholder becomes a field in the New branch dialog." />
+
+        <TextBox Text="{Binding Pattern, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                 Watermark="nrs/{Date}-sa-{SANumber}-{description}"
+                 FontFamily="Cascadia Code,Consolas,monospace" />
+
+        <TextBlock Text="{Binding PatternError}"
+                   IsVisible="{Binding HasPatternError}"
+                   Foreground="{DynamicResource SystemControlErrorTextForegroundBrush}"
+                   FontSize="12"
+                   TextWrapping="Wrap" />
+
+        <TextBlock Opacity="0.7" FontSize="12" TextWrapping="Wrap"
+                   Text="Each field can be pre-filled by a C# expression that returns a value, such as DateTime.Now.ToString(&quot;yyyyMMdd&quot;). Leave one blank to start that field empty." />
+
+        <ItemsControl ItemsSource="{Binding Tokens}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:BranchTokenDefaultViewModel">
+              <Grid ColumnDefinitions="150,*" Margin="0,0,0,10">
+                <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Top"
+                           Margin="0,7,10,0" Opacity="0.8" TextTrimming="CharacterEllipsis" />
+                <StackPanel Grid.Column="1" Spacing="3">
+                  <TextBox Text="{Binding Code, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                           Watermark="DateTime.Now.ToString(&quot;yyyyMMdd&quot;)"
+                           FontFamily="Cascadia Code,Consolas,monospace" />
+
+                  <!-- Compiler error, or whatever the expression threw when it ran. -->
+                  <TextBlock Text="{Binding Error}"
+                             IsVisible="{Binding HasError}"
+                             FontSize="11"
+                             Foreground="{DynamicResource SystemControlErrorTextForegroundBrush}"
+                             TextWrapping="Wrap" />
+
+                  <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasPreview}">
+                    <TextBlock Text="&#8594;" Opacity="0.45" FontSize="11" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding Preview}" FontSize="11" Opacity="0.7"
+                               FontFamily="Cascadia Code,Consolas,monospace" VerticalAlignment="Center" />
+                  </StackPanel>
+                </StackPanel>
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <Grid ColumnDefinitions="150,*">
+          <TextBlock Grid.Column="0" Text="Example" Opacity="0.6" FontSize="12"
+                     VerticalAlignment="Center" Margin="0,0,10,0" />
+          <TextBlock Grid.Column="1" Text="{Binding Preview}" FontWeight="SemiBold"
+                     FontFamily="Cascadia Code,Consolas,monospace" TextWrapping="Wrap" />
+        </Grid>
+
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+          <Button Content="Cancel" Command="{Binding CancelCommand}" />
+          <Button Content="Save" Command="{Binding SaveCommand}" Classes="accent" IsDefault="True" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+  </Border>
+
+  </Panel>
 
 </UserControl>

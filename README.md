@@ -8,10 +8,10 @@ even on very large files.
 NRSGitCheck reads your repository and never modifies your work. The only things it
 writes are ones you press a button for: **Pull main**, which fetches and
 fast-forwards your main branch (fast-forward only, and it leaves your working tree
-untouched unless main is checked out), and the branch switches on the
-**Repositories** tab, which are plain checkouts — Git itself refuses any switch that
-would overwrite uncommitted work. Nothing is ever stashed, merged, or discarded on
-your behalf.
+untouched unless main is checked out), and the branch switches and branch creation on
+the **Repositories** tab, which are plain checkouts — Git itself refuses any switch
+that would overwrite uncommitted work. Nothing is ever stashed, merged, or discarded
+on your behalf.
 
 ![Side-by-side diff with syntax and word-level highlighting](docs/screenshots/side-by-side.png)
 
@@ -26,8 +26,14 @@ your behalf.
 - **Repositories tab** — keep a list of the repositories you work in and see, at a
   glance, which branch each one is on and whether it has uncommitted changes or
   unpushed commits. Switch any of them to another local branch or to `main`, pull
-  `main` in one, or pull `main` in every repository that currently has it checked
-  out. The list is stored with your settings, so it survives restarts.
+  `main` in one, or pull `main` in every repository that currently has `main` (or
+  `master`) checked out. The list is stored with your settings, so it survives restarts.
+- **New branches from a pattern** — define a shape once, such as
+  `nrs/{TodaysDate}-sa-{SANumber}-{description}`, and every `{placeholder}` becomes a
+  field in the New branch dialog. Each field can be pre-filled by a small C# expression
+  you write — `DateTime.Now.ToString("yyyyMMdd")`, say — which is compiled and run as
+  you type it, so a typo is reported where you wrote it rather than when you need a
+  branch (see [Branch name patterns](#branch-name-patterns)).
 - **Review a pull request** — paste a PR link, and it is fetched onto a local
   `pr-N` branch, checked out, and compared against `main` — the same diff GitHub
   shows on the PR's Files-changed tab.
@@ -136,14 +142,48 @@ the UI, so rendering of the first hunks overlaps with computation of the rest �
 appears progressively rather than freezing until it's done. Word-level highlighting and
 syntax colors are applied per hunk as it arrives.
 
+## Branch name patterns
+
+The **Branch pattern…** button on the Repositories tab defines how new branches are
+named. The pattern is ordinary text with `{placeholders}`:
+
+```
+nrs/{TodaysDate}-sa-{SANumber}-{description}
+```
+
+Every placeholder becomes a field in the **New branch** dialog. Each one can have a
+default: a C# expression that returns a value, evaluated when the dialog opens.
+
+| Field | Expression | Produces |
+| --- | --- | --- |
+| `TodaysDate` | `DateTime.Now.ToString("yyyyMMdd")` | `20260824` |
+| `SANumber` | *(blank — you fill it in)* | |
+| `description` | *(blank — you fill it in)* | |
+
+Expressions are compiled as you type them, and the settings dialog shows either what
+the expression currently produces or the compiler error, with its column. `System`,
+`System.Linq`, `System.Text`, and `System.Globalization` are in scope, so short names
+like `DateTime` work. An expression that fails is not fatal: its field simply starts
+empty and the New branch dialog says why.
+
+Field values are folded into a legal ref name — spaces become dashes, and characters
+Git will not accept are dropped — and the assembled name is shown before you commit to
+it. Creating the branch runs `git checkout -b`, so Git has the final say on the name.
+
+These expressions are your own code, running in this process with no sandbox. They are
+a formula field, not a plugin system: an expression only runs when you open the branch
+dialogs, and a long-running one is abandoned after three seconds.
+
 ## Tech stack
 
 - [.NET 10](https://dotnet.microsoft.com/) / C#
 - [Avalonia](https://avaloniaui.net/) — cross-platform UI
 - [LibGit2Sharp](https://github.com/libgit2/libgit2sharp) — read-only Git access
 - The `git` CLI — used for the write actions (**Pull main**, PR checkout, branch
-  switches), so your existing credential helper handles authentication and the app
-  never touches your secrets
+  switches and creation), so your existing credential helper handles authentication
+  and the app never touches your secrets
+- [Roslyn scripting](https://github.com/dotnet/roslyn) — compiles and runs the C#
+  expressions behind branch-name fields
 - [TextMateSharp](https://github.com/danipen/TextMateSharp) — syntax highlighting
 - [CommunityToolkit.Mvvm](https://learn.microsoft.com/dotnet/communitytoolkit/mvvm/) — MVVM
 - xUnit for tests

@@ -49,6 +49,7 @@ public partial class App : Application
         services.AddSingleton<IGitService, GitService>();
         services.AddSingleton<IGitCommandService, GitCommandService>();
         services.AddSingleton<IRepositoryStatusService, RepositoryStatusService>();
+        services.AddSingleton<IExpressionEvaluator, RoslynExpressionEvaluator>();
         services.AddSingleton<ISyntaxHighlighter, SyntaxHighlighter>();
         services.AddSingleton<IDiffService, DiffService>();
         services.AddSingleton<IThemeService, ThemeService>();

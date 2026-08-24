@@ -37,4 +37,17 @@ public sealed class AppSettings
     /// them. Curated by hand, so nothing is evicted automatically.
     /// </summary>
     public List<TrackedRepository> TrackedRepositories { get; set; } = new();
+
+    /// <summary>
+    /// Pattern used to seed new branch names, with <c>{Token}</c> placeholders —
+    /// for example <c>nrs/{Date}-sa-{SANumber}-{description}</c>. Empty means the
+    /// create-branch dialog just asks for a name.
+    /// </summary>
+    public string NewBranchPattern { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Token name → the C# expression whose result seeds that field, such as
+    /// <c>DateTime.Now.ToString("yyyyMMdd")</c>. Tokens with no expression start blank.
+    /// </summary>
+    public Dictionary<string, string> BranchTokenDefaults { get; set; } = new();
 }
