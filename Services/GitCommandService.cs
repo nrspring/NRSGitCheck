@@ -139,6 +139,51 @@ public sealed class GitCommandService : IGitCommandService
             : create;
     }
 
+    public async Task<GitCommandResult> CommitAllAsync(
+        string workingDirectory, string message, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(workingDirectory))
+            return new GitCommandResult(false, "No repository path.");
+        if (string.IsNullOrWhiteSpace(message))
+            return new GitCommandResult(false, "Enter a commit message.");
+
+        // Stage everything first, so new and deleted files are part of the commit
+        // rather than silently left behind in the working tree.
+        var stage = await RunAsync(workingDirectory, ct, "add", "-A");
+        if (!stage.Success)
+            return stage;
+
+        var commit = await RunAsync(workingDirectory, ct, "commit", "-m", message.Trim());
+        if (!commit.Success)
+            return commit;
+
+        // Git's first line is "[branch 1a2b3c4] subject", which says more than
+        // anything this could compose.
+        var summary = FirstLines(commit.Message, 1);
+        return new GitCommandResult(true, summary.Length > 0 ? summary : "Committed.");
+    }
+
+    public async Task<GitCommandResult> DiscardChangesAsync(
+        string workingDirectory, bool deleteUntrackedFiles, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(workingDirectory))
+            return new GitCommandResult(false, "No repository path.");
+
+        var reset = await RunAsync(workingDirectory, ct, "reset", "--hard");
+        if (!reset.Success)
+            return reset;
+
+        if (!deleteUntrackedFiles)
+            return new GitCommandResult(true, "Reverted tracked files to the checked-out commit.");
+
+        // -d walks untracked directories; no -x, so ignored files (build output,
+        // local config) survive. Deleting those is never implied by "discard changes".
+        var clean = await RunAsync(workingDirectory, ct, "clean", "-fd");
+        return clean.Success
+            ? new GitCommandResult(true, "Reverted tracked files and deleted untracked ones.")
+            : clean;
+    }
+
     /// <summary>Recognizes Git's refusal to move a ref backwards or sideways.</summary>
     private static bool IsNonFastForward(string message) =>
         message.Contains("non-fast-forward", StringComparison.OrdinalIgnoreCase) ||

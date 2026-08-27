@@ -192,6 +192,14 @@ public sealed class FileNavigationTests : IDisposable
         public Task<GitCommandResult> CreateBranchAsync(
             string workingDirectory, string branch, CancellationToken ct = default) =>
             Task.FromResult(new GitCommandResult(true, $"created {branch}"));
+
+        public Task<GitCommandResult> CommitAllAsync(
+            string workingDirectory, string message, CancellationToken ct = default) =>
+            Task.FromResult(new GitCommandResult(true, $"committed {message}"));
+
+        public Task<GitCommandResult> DiscardChangesAsync(
+            string workingDirectory, bool deleteUntrackedFiles, CancellationToken ct = default) =>
+            Task.FromResult(new GitCommandResult(true, "discarded"));
     }
 
     private sealed class StubClipboard : IClipboardService

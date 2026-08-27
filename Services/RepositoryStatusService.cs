@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using LibGit2Sharp;
 using NRSGitCheck.Models;
 using GitFileStatus = LibGit2Sharp.FileStatus;
+using UiChangeKind = NRSGitCheck.Models.ChangeKind;
 using UiRepositoryStatus = NRSGitCheck.Models.RepositoryStatus;
 
 namespace NRSGitCheck.Services;
@@ -89,9 +90,23 @@ public sealed class RepositoryStatusService : IRepositoryStatusService
             .ToList();
 
         var status = repo.RetrieveStatus(StatusOptions);
-        var uncommitted = status.Count(e =>
-            e.State != GitFileStatus.Unaltered &&
-            !e.State.HasFlag(GitFileStatus.Ignored));
+        var changed = status
+            .Where(e => e.State != GitFileStatus.Unaltered && !e.State.HasFlag(GitFileStatus.Ignored))
+            .ToList();
+
+        var uncommitted = changed.Count;
+        var untracked = changed.Count(e => e.State.HasFlag(GitFileStatus.NewInWorkdir));
+
+        // The commit and discard dialogs list these. Untracked paths come first, and
+        // deliberately so: they are the ones a discard deletes outright with no copy
+        // to restore from, and the ones `git add -A` sweeps into a commit, so the cap
+        // below must never be able to hide them behind a few hundred edited files.
+        var changes = changed
+            .Select(e => new WorkingTreeChange(e.FilePath, Classify(e.State)))
+            .OrderByDescending(c => c.IsUntracked)
+            .ThenBy(c => c.Path, StringComparer.OrdinalIgnoreCase)
+            .Take(MaxListedChanges)
+            .ToList();
 
         // TrackingDetails is only meaningful for a branch with an upstream; an
         // unborn or detached head has none, and neither does a never-pushed branch.
@@ -112,7 +127,31 @@ public sealed class RepositoryStatusService : IRepositoryStatusService
 
         return new UiRepositoryStatus(
             path, name, IsValid: true, Error: null, branch, isDetached, isUnborn,
-            locals, main, uncommitted, hasUpstream, ahead, behind, hasRemote);
+            locals, main, uncommitted, hasUpstream, ahead, behind, hasRemote, changes, untracked);
+    }
+
+    /// <summary>
+    /// How many changed paths a status carries, so a repository mid-rebuild cannot put
+    /// ten thousand rows in a dialog. The count itself is always exact.
+    /// </summary>
+    private const int MaxListedChanges = 200;
+
+    /// <summary>
+    /// Reduces a status flag set to the one kind worth showing. A path can be both
+    /// staged and modified again since; the working-tree state is checked first
+    /// because that is what the user last did to it.
+    /// </summary>
+    private static UiChangeKind Classify(GitFileStatus state)
+    {
+        if (state.HasFlag(GitFileStatus.NewInWorkdir))
+            return UiChangeKind.Untracked;
+        if (state.HasFlag(GitFileStatus.RenamedInWorkdir) || state.HasFlag(GitFileStatus.RenamedInIndex))
+            return UiChangeKind.Renamed;
+        if (state.HasFlag(GitFileStatus.DeletedFromWorkdir) || state.HasFlag(GitFileStatus.DeletedFromIndex))
+            return UiChangeKind.Deleted;
+        if (state.HasFlag(GitFileStatus.NewInIndex))
+            return UiChangeKind.Added;
+        return UiChangeKind.Modified;
     }
 
     private static string DeriveName(string? path)

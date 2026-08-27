@@ -49,6 +49,14 @@ public partial class RepositoriesViewModel : ViewModelBase
         NewBranch.Failed += OnBranchFailed;
         BranchPattern = new BranchPatternViewModel(settings, evaluator);
 
+        Commit = new CommitChangesViewModel();
+        Commit.Committed += OnWorkingTreeChanged;
+        Commit.Failed += ReportError;
+
+        Discard = new DiscardChangesViewModel();
+        Discard.Discarded += OnWorkingTreeChanged;
+        Discard.Failed += ReportError;
+
         foreach (var tracked in _settings.Settings.TrackedRepositories)
             Repositories.Add(CreateRow(tracked));
 
@@ -60,6 +68,28 @@ public partial class RepositoriesViewModel : ViewModelBase
 
     /// <summary>The branch-pattern settings dialog.</summary>
     public BranchPatternViewModel BranchPattern { get; }
+
+    /// <summary>The commit dialog, opened from a row's uncommitted-changes pill.</summary>
+    public CommitChangesViewModel Commit { get; }
+
+    /// <summary>The discard confirmation, opened from the same pill.</summary>
+    public DiscardChangesViewModel Discard { get; }
+
+    /// <summary>Opens the commit dialog for one repository.</summary>
+    public void BeginCommit(TrackedRepositoryViewModel repository) => Commit.Open(repository);
+
+    /// <summary>Opens the discard confirmation for one repository.</summary>
+    public void BeginDiscard(TrackedRepositoryViewModel repository) => Discard.Open(repository);
+
+    /// <summary>
+    /// A commit or discard landed: the roll-up line and the bulk buttons both key
+    /// off which repositories are dirty, so both are re-derived.
+    /// </summary>
+    private void OnWorkingTreeChanged(string message)
+    {
+        Report(message);
+        NotifyBulkCommands();
+    }
 
     /// <summary>Opens the create-branch dialog for one or more repositories.</summary>
     public void BeginNewBranch(IReadOnlyList<TrackedRepositoryViewModel> repositories) =>

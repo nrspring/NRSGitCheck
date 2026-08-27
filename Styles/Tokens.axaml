@@ -32,6 +32,8 @@
 
       <!-- Status badges: tinted fill with a saturated label, rather than a solid block. -->
       <SolidColorBrush x:Key="AppWarnFill" Color="#1FD97706" />
+      <!-- The uncommitted-changes pill is a button; this is its hover/pressed fill. -->
+      <SolidColorBrush x:Key="AppWarnFillHover" Color="#38D97706" />
       <SolidColorBrush x:Key="AppWarnText" Color="#B45309" />
       <SolidColorBrush x:Key="AppInfoFill" Color="#1F2F6FED" />
       <SolidColorBrush x:Key="AppInfoText" Color="#2059C7" />
@@ -60,6 +62,7 @@
       <SolidColorBrush x:Key="AppOnAccent" Color="#0E1116" />
 
       <SolidColorBrush x:Key="AppWarnFill" Color="#2BF59E0B" />
+      <SolidColorBrush x:Key="AppWarnFillHover" Color="#4AF59E0B" />
       <SolidColorBrush x:Key="AppWarnText" Color="#F0B357" />
       <SolidColorBrush x:Key="AppInfoFill" Color="#2B4C8DF6" />
       <SolidColorBrush x:Key="AppInfoText" Color="#7FB0F9" />

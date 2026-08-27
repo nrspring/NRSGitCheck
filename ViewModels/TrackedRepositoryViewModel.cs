@@ -71,6 +71,8 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
     [ObservableProperty]
     private bool _hasUncommittedChanges;
 
+    partial void OnHasUncommittedChangesChanged(bool value) => NotifyCommands();
+
     [ObservableProperty]
     private string _uncommittedText = string.Empty;
 
@@ -293,6 +295,77 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
         }
     }
 
+    // --- Uncommitted changes ------------------------------------------------
+
+    private bool CanActOnUncommittedChanges() => !IsBusy && IsValid && HasUncommittedChanges;
+
+    /// <summary>Opens the commit dialog for this repository.</summary>
+    [RelayCommand(CanExecute = nameof(CanActOnUncommittedChanges))]
+    private void CommitChanges() => _owner.BeginCommit(this);
+
+    /// <summary>Opens the discard confirmation for this repository.</summary>
+    [RelayCommand(CanExecute = nameof(CanActOnUncommittedChanges))]
+    private void DiscardChanges() => _owner.BeginDiscard(this);
+
+    /// <summary>
+    /// Stages everything and commits it, then re-reads the status. The raw result
+    /// comes back so the dialog can keep a refusal on screen next to the message
+    /// that caused it.
+    /// </summary>
+    public async Task<GitCommandResult> CommitAllAsync(string message)
+    {
+        if (IsBusy)
+            return new GitCommandResult(false, "Busy.");
+
+        IsBusy = true;
+        _owner.BeginOperation($"Committing in {Name}…");
+        try
+        {
+            var result = await _gitCommands.CommitAllAsync(Path, message);
+            await RefreshAsync();
+            return result;
+        }
+        catch (Exception ex)
+        {
+            await RefreshAsync();
+            return new GitCommandResult(false, $"Commit failed: {ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+            _owner.EndOperation();
+        }
+    }
+
+    /// <summary>
+    /// Throws this repository's uncommitted work away. Only called from the discard
+    /// confirmation — nothing here re-checks intent, so the caller must have it.
+    /// </summary>
+    public async Task<GitCommandResult> DiscardChangesAsync(bool deleteUntrackedFiles)
+    {
+        if (IsBusy)
+            return new GitCommandResult(false, "Busy.");
+
+        IsBusy = true;
+        _owner.BeginOperation($"Discarding changes in {Name}…");
+        try
+        {
+            var result = await _gitCommands.DiscardChangesAsync(Path, deleteUntrackedFiles);
+            await RefreshAsync();
+            return result;
+        }
+        catch (Exception ex)
+        {
+            await RefreshAsync();
+            return new GitCommandResult(false, $"Discard failed: {ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+            _owner.EndOperation();
+        }
+    }
+
     // --- Row actions --------------------------------------------------------
 
     private bool CanCreateBranch() => !IsBusy && IsValid;
@@ -329,5 +402,7 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
         SwitchToMainCommand.NotifyCanExecuteChanged();
         PullMainCommand.NotifyCanExecuteChanged();
         NewBranchCommand.NotifyCanExecuteChanged();
+        CommitChangesCommand.NotifyCanExecuteChanged();
+        DiscardChangesCommand.NotifyCanExecuteChanged();
     }
 }

@@ -22,10 +22,23 @@ public sealed record RepositoryStatus(
     bool HasUpstream,
     int AheadBy,
     int BehindBy,
-    bool HasRemote)
+    bool HasRemote,
+    IReadOnlyList<WorkingTreeChange> Changes,
+    int UntrackedCount)
 {
     /// <summary>Working-tree or index changes, including untracked files.</summary>
     public bool HasUncommittedChanges => UncommittedCount > 0;
+
+    /// <summary>Changed paths that Git already tracks — what a discard would revert.</summary>
+    public int TrackedChangeCount => Math.Max(0, UncommittedCount - UntrackedCount);
+
+    /// <summary>
+    /// True when <see cref="Changes"/> was capped and does not list every path, so a
+    /// dialog showing it must say how many more there are. <see cref="Changes"/> is
+    /// ordered untracked-first for exactly this reason: what the cap drops should be
+    /// the edited files, never the ones a discard would delete for good.
+    /// </summary>
+    public bool HasUnlistedChanges => UncommittedCount > Changes.Count;
 
     /// <summary>Commits on the current branch that its upstream does not have.</summary>
     public bool HasUnpushedCommits => AheadBy > 0;
@@ -57,5 +70,5 @@ public sealed record RepositoryStatus(
         path, name, IsValid: false, error, CurrentBranch: string.Empty,
         IsDetachedHead: false, IsHeadUnborn: false, LocalBranches: Array.Empty<string>(),
         MainBranch: null, UncommittedCount: 0, HasUpstream: false, AheadBy: 0, BehindBy: 0,
-        HasRemote: false);
+        HasRemote: false, Changes: Array.Empty<WorkingTreeChange>(), UntrackedCount: 0);
 }

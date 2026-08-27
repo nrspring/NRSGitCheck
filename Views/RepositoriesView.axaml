@@ -1,6 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:NRSGitCheck.ViewModels"
+             xmlns:models="using:NRSGitCheck.Models"
+             xmlns:conv="using:NRSGitCheck.Converters"
              x:Class="NRSGitCheck.Views.RepositoriesView"
              x:DataType="vm:RepositoriesViewModel">
 
@@ -159,10 +161,27 @@
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
                                 Margin="12,0" VerticalAlignment="Center">
 
-                      <Border Classes="badge" Background="{DynamicResource AppWarnFill}"
-                              IsVisible="{Binding HasUncommittedChanges}">
-                        <TextBlock Text="{Binding UncommittedText}" Foreground="{DynamicResource AppWarnText}" />
-                      </Border>
+                      <!-- The one badge that does something: it opens the commit /
+                           discard menu for this repository's working tree. -->
+                      <Button Classes="badge"
+                              IsVisible="{Binding HasUncommittedChanges}"
+                              IsEnabled="{Binding !IsBusy}"
+                              ToolTip.Tip="Commit or discard the changes in this repository">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                          <TextBlock Text="{Binding UncommittedText}"
+                                     Foreground="{DynamicResource AppWarnText}"
+                                     FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
+                          <TextBlock Text="&#x25BE;"
+                                     Foreground="{DynamicResource AppWarnText}"
+                                     FontSize="10" Opacity="0.8" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <Button.Flyout>
+                          <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                            <MenuItem Header="Commit changes…" Command="{Binding CommitChangesCommand}" />
+                            <MenuItem Header="Discard changes…" Command="{Binding DiscardChangesCommand}" />
+                          </MenuFlyout>
+                        </Button.Flyout>
+                      </Button>
 
                       <Border Classes="badge" Background="{DynamicResource AppInfoFill}"
                               IsVisible="{Binding HasUnpushedCommits}">
@@ -367,6 +386,164 @@
         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
           <Button Content="Cancel" Command="{Binding CancelCommand}" />
           <Button Content="Save" Command="{Binding SaveCommand}" Classes="accent" IsDefault="True" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+  </Border>
+
+  <!-- Commit dialog: everything in the working tree is staged and committed, so the
+       list below is the commit. -->
+  <Border x:DataType="vm:CommitChangesViewModel"
+          DataContext="{Binding Commit}"
+          IsVisible="{Binding IsVisible}"
+          Background="#99000000">
+    <Border Classes="card" Padding="24" MinWidth="600" MaxWidth="760"
+            HorizontalAlignment="Center" VerticalAlignment="Center">
+      <StackPanel Spacing="14">
+
+        <StackPanel Spacing="3">
+          <TextBlock Text="Commit changes" FontSize="18" FontWeight="SemiBold" />
+          <StackPanel Orientation="Horizontal" Spacing="5">
+            <TextBlock Text="in" Opacity="0.6" />
+            <TextBlock Text="{Binding RepositoryName}" FontWeight="SemiBold" />
+            <TextBlock Text="on" Opacity="0.6" />
+            <TextBlock Text="{Binding Branch}" FontFamily="Cascadia Code,Consolas,monospace" />
+          </StackPanel>
+        </StackPanel>
+
+        <TextBlock Text="{Binding Summary}" Opacity="0.7" FontSize="12" />
+
+        <Border BorderBrush="{DynamicResource AppBorder}" BorderThickness="1" CornerRadius="6"
+                MaxHeight="220">
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="10,8">
+              <ItemsControl ItemsSource="{Binding Changes}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="models:WorkingTreeChange">
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2">
+                      <Border Width="16" Height="16" CornerRadius="4" VerticalAlignment="Center"
+                              Background="{Binding Kind, Converter={x:Static conv:ChangeKindToBrushConverter.Instance}}">
+                        <TextBlock Text="{Binding Marker}" FontSize="10" FontWeight="Bold"
+                                   Foreground="White"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      </Border>
+                      <TextBlock Text="{Binding Path}" FontSize="12"
+                                 FontFamily="Cascadia Code,Consolas,monospace"
+                                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <TextBlock Text="{Binding UnlistedChangesText}"
+                         IsVisible="{Binding HasUnlistedChanges}"
+                         Opacity="0.55" FontSize="11" Margin="0,4,0,0" />
+            </StackPanel>
+          </ScrollViewer>
+        </Border>
+
+        <StackPanel Spacing="5">
+          <TextBlock Text="Commit message" Opacity="0.6" FontSize="12" />
+          <TextBox Text="{Binding Message, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                   AcceptsReturn="True"
+                   TextWrapping="Wrap"
+                   MinHeight="86"
+                   MaxHeight="180"
+                   Watermark="Describe what changed" />
+        </StackPanel>
+
+        <TextBlock Opacity="0.5" FontSize="11" TextWrapping="Wrap"
+                   Text="Every listed path is staged and committed together. Nothing is pushed &#8212; the commit stays local until you push it yourself." />
+
+        <TextBlock Text="{Binding Error}"
+                   IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                   Foreground="{DynamicResource SystemControlErrorTextForegroundBrush}"
+                   TextWrapping="Wrap" />
+
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+          <Button Content="Cancel" Command="{Binding CancelCommand}" IsEnabled="{Binding !IsBusy}" />
+          <Button Content="Commit" Command="{Binding CommitCommand}" Classes="accent" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+  </Border>
+
+  <!-- Discard confirmation. Nothing has run yet while this is on screen; it is here
+       so the user sees exactly what is about to be thrown away. -->
+  <Border x:DataType="vm:DiscardChangesViewModel"
+          DataContext="{Binding Discard}"
+          IsVisible="{Binding IsVisible}"
+          Background="#99000000">
+    <Border Classes="card" Padding="24" MinWidth="600" MaxWidth="760"
+            HorizontalAlignment="Center" VerticalAlignment="Center">
+      <StackPanel Spacing="14">
+
+        <StackPanel Spacing="3">
+          <TextBlock Text="Discard changes" FontSize="18" FontWeight="SemiBold" />
+          <StackPanel Orientation="Horizontal" Spacing="5">
+            <TextBlock Text="in" Opacity="0.6" />
+            <TextBlock Text="{Binding RepositoryName}" FontWeight="SemiBold" />
+            <TextBlock Text="on" Opacity="0.6" />
+            <TextBlock Text="{Binding Branch}" FontFamily="Cascadia Code,Consolas,monospace" />
+          </StackPanel>
+        </StackPanel>
+
+        <Border Background="{DynamicResource AppWarnFill}" CornerRadius="6" Padding="12,9">
+          <StackPanel Spacing="4">
+            <TextBlock Text="This cannot be undone." FontWeight="SemiBold"
+                       Foreground="{DynamicResource AppWarnText}" />
+            <TextBlock Text="{Binding TrackedSummary}" FontSize="12"
+                       Foreground="{DynamicResource AppWarnText}" TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
+
+        <Border BorderBrush="{DynamicResource AppBorder}" BorderThickness="1" CornerRadius="6"
+                MaxHeight="220">
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="10,8">
+              <ItemsControl ItemsSource="{Binding Changes}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="models:WorkingTreeChange">
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2">
+                      <Border Width="16" Height="16" CornerRadius="4" VerticalAlignment="Center"
+                              Background="{Binding Kind, Converter={x:Static conv:ChangeKindToBrushConverter.Instance}}">
+                        <TextBlock Text="{Binding Marker}" FontSize="10" FontWeight="Bold"
+                                   Foreground="White"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      </Border>
+                      <TextBlock Text="{Binding Path}" FontSize="12"
+                                 FontFamily="Cascadia Code,Consolas,monospace"
+                                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <TextBlock Text="{Binding UnlistedChangesText}"
+                         IsVisible="{Binding HasUnlistedChanges}"
+                         Opacity="0.55" FontSize="11" Margin="0,4,0,0" />
+            </StackPanel>
+          </ScrollViewer>
+        </Border>
+
+        <!-- Untracked files have never been in Git, so nothing can bring them back.
+             Deleting them is a separate yes, off every time this opens. -->
+        <StackPanel Spacing="4" IsVisible="{Binding HasUntrackedFiles}">
+          <CheckBox IsChecked="{Binding DeleteUntrackedFiles, Mode=TwoWay}"
+                    Content="{Binding UntrackedSummary}" />
+          <TextBlock Opacity="0.55" FontSize="11" TextWrapping="Wrap" Margin="26,0,0,0"
+                     Text="These files have never been committed, so there is no copy to restore them from. Ignored files &#8212; build output, local config &#8212; are left alone either way." />
+        </StackPanel>
+
+        <TextBlock Text="{Binding Error}"
+                   IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                   Foreground="{DynamicResource SystemControlErrorTextForegroundBrush}"
+                   TextWrapping="Wrap" />
+
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+          <Button Content="Cancel" Command="{Binding CancelCommand}" IsEnabled="{Binding !IsBusy}"
+                  IsDefault="True" />
+          <Button Content="Discard changes" Command="{Binding DiscardCommand}" />
         </StackPanel>
       </StackPanel>
     </Border>

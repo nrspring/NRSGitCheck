@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -168,7 +169,7 @@ public sealed class NewBranchMultiRepoTests
         path, path, IsValid: true, Error: null, CurrentBranch: "main",
         IsDetachedHead: false, IsHeadUnborn: false, LocalBranches: new[] { "main" },
         MainBranch: "main", UncommittedCount: 0, HasUpstream: true, AheadBy: 0, BehindBy: 0,
-        HasRemote: true);
+        HasRemote: true, Changes: Array.Empty<WorkingTreeChange>(), UntrackedCount: 0);
 
     private sealed class RecordingGitCommands : IGitCommandService
     {
@@ -184,6 +185,14 @@ public sealed class NewBranchMultiRepoTests
             Created.Add((workingDirectory, branch));
             return Task.FromResult(new GitCommandResult(true, $"created {branch}"));
         }
+
+        public Task<GitCommandResult> CommitAllAsync(
+            string workingDirectory, string message, CancellationToken ct = default) =>
+            Task.FromResult(new GitCommandResult(true, $"committed {message}"));
+
+        public Task<GitCommandResult> DiscardChangesAsync(
+            string workingDirectory, bool deleteUntrackedFiles, CancellationToken ct = default) =>
+            Task.FromResult(new GitCommandResult(true, "discarded"));
 
         public Task<GitCommandResult> PullMainAsync(
             string workingDirectory, string? mainBranch, string? currentBranch, CancellationToken ct = default) =>

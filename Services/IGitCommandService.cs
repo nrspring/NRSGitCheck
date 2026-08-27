@@ -50,4 +50,24 @@ public interface IGitCommandService
     /// </summary>
     Task<GitCommandResult> CreateBranchAsync(
         string workingDirectory, string branch, CancellationToken ct = default);
+
+    /// <summary>
+    /// Stages everything in the working tree (<c>git add -A</c>) and commits it with
+    /// the given message. Anything Git refuses — an empty message, no configured
+    /// identity, a failing pre-commit hook — comes back as a failed result with
+    /// Git's own words; nothing is retried with a hook bypassed.
+    /// </summary>
+    Task<GitCommandResult> CommitAllAsync(
+        string workingDirectory, string message, CancellationToken ct = default);
+
+    /// <summary>
+    /// Throws the working tree away: <c>git reset --hard</c> puts every tracked file
+    /// back to the checked-out commit, and when
+    /// <paramref name="deleteUntrackedFiles"/> is set, <c>git clean -fd</c> then
+    /// deletes files Git does not track. Ignored files (build output, local config)
+    /// are never touched. This is not recoverable through Git, so only call it
+    /// behind an explicit confirmation.
+    /// </summary>
+    Task<GitCommandResult> DiscardChangesAsync(
+        string workingDirectory, bool deleteUntrackedFiles, CancellationToken ct = default);
 }
