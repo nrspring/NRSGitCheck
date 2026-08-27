@@ -190,6 +190,10 @@ public sealed class NewBranchMultiRepoTests
             string workingDirectory, string message, CancellationToken ct = default) =>
             Task.FromResult(new GitCommandResult(true, $"committed {message}"));
 
+        public Task<GitCommandResult> PushAsync(
+            string workingDirectory, string branch, bool setUpstream, CancellationToken ct = default) =>
+            Task.FromResult(new GitCommandResult(true, $"pushed {branch}"));
+
         public Task<GitCommandResult> DiscardChangesAsync(
             string workingDirectory, bool deleteUntrackedFiles, CancellationToken ct = default) =>
             Task.FromResult(new GitCommandResult(true, "discarded"));

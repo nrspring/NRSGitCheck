@@ -108,11 +108,23 @@ public sealed class RepositoryStatusService : IRepositoryStatusService
             .Take(MaxListedChanges)
             .ToList();
 
+        var hasRemote = repo.Network.Remotes.Any();
+
         // TrackingDetails is only meaningful for a branch with an upstream; an
         // unborn or detached head has none, and neither does a never-pushed branch.
         var hasUpstream = !isUnborn && !isDetached && head.IsTracking;
         var ahead = hasUpstream ? head.TrackingDetails.AheadBy ?? 0 : 0;
         var behind = hasUpstream ? head.TrackingDetails.BehindBy ?? 0 : 0;
+
+        // A branch that has never been pushed has nothing to be ahead *of*, so the
+        // count above stays zero and the row would claim there is nothing to push.
+        // Measure it against the integration branch as the remote has it instead:
+        // those are exactly the commits that exist only on this machine.
+        if (!hasUpstream && !isUnborn && !isDetached && hasRemote &&
+            head.Tip is { } localTip && RemoteIntegrationBranch(repo)?.Tip is { } remoteTip)
+        {
+            ahead = repo.ObjectDatabase.CalculateHistoryDivergence(localTip, remoteTip).AheadBy ?? 0;
+        }
 
         var main = MainBranchDetector.Detect(repo)?.FriendlyName;
 
@@ -123,11 +135,25 @@ public sealed class RepositoryStatusService : IRepositoryStatusService
         if (!isDetached && !isUnborn && MainBranchDetector.IsIntegrationBranchName(branch))
             main = branch;
 
-        var hasRemote = repo.Network.Remotes.Any();
-
         return new UiRepositoryStatus(
             path, name, IsValid: true, Error: null, branch, isDetached, isUnborn,
             locals, main, uncommitted, hasUpstream, ahead, behind, hasRemote, changes, untracked);
+    }
+
+    /// <summary>
+    /// The integration branch as the remote has it, which is what an unpushed local
+    /// branch is measured against. Null when the remote has no main/master yet — a
+    /// freshly created remote, where every commit is unpushed by definition.
+    /// </summary>
+    private static Branch? RemoteIntegrationBranch(Repository repo)
+    {
+        if (MainBranchDetector.Detect(repo) is not { } main)
+            return null;
+
+        return main.IsRemote
+            ? main
+            : main.TrackedBranch ??
+              repo.Branches.FirstOrDefault(b => b.IsRemote && b.FriendlyName == $"origin/{main.FriendlyName}");
     }
 
     /// <summary>

@@ -40,8 +40,22 @@ public sealed record RepositoryStatus(
     /// </summary>
     public bool HasUnlistedChanges => UncommittedCount > Changes.Count;
 
-    /// <summary>Commits on the current branch that its upstream does not have.</summary>
+    /// <summary>Commits on the current branch that the remote does not have.</summary>
     public bool HasUnpushedCommits => AheadBy > 0;
+
+    /// <summary>
+    /// The checked-out branch is not on the remote at all, so publishing it has to
+    /// create it there and set it as the upstream rather than just sending commits.
+    /// </summary>
+    public bool NeedsFirstPush =>
+        IsValid && HasRemote && !IsDetachedHead && !IsHeadUnborn && !HasUpstream;
+
+    /// <summary>
+    /// Whether a push has anything to do: commits the remote lacks, or a branch the
+    /// remote has never seen.
+    /// </summary>
+    public bool CanPush =>
+        IsValid && HasRemote && !IsDetachedHead && !IsHeadUnborn && (HasUnpushedCommits || NeedsFirstPush);
 
     /// <summary>
     /// The local branch name to check out for "switch to main" — for a repository

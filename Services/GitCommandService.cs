@@ -139,6 +139,34 @@ public sealed class GitCommandService : IGitCommandService
             : create;
     }
 
+    public async Task<GitCommandResult> PushAsync(
+        string workingDirectory, string branch, bool setUpstream, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(workingDirectory))
+            return new GitCommandResult(false, "No repository path.");
+
+        if (!setUpstream)
+        {
+            // The branch already tracks something; let Git send it there rather than
+            // second-guessing which remote that is.
+            var push = await RunAsync(workingDirectory, ct, "push");
+            return push.Success
+                ? new GitCommandResult(true, $"Pushed {Describe(branch)} to its upstream.")
+                : push;
+        }
+
+        if (string.IsNullOrWhiteSpace(branch))
+            return new GitCommandResult(false, "No branch to publish.");
+
+        var publish = await RunAsync(workingDirectory, ct, "push", "--set-upstream", "origin", branch);
+        return publish.Success
+            ? new GitCommandResult(true, $"Pushed {branch} to origin and set it as the upstream.")
+            : publish;
+    }
+
+    private static string Describe(string branch) =>
+        string.IsNullOrWhiteSpace(branch) ? "the current branch" : branch;
+
     public async Task<GitCommandResult> CommitAllAsync(
         string workingDirectory, string message, CancellationToken ct = default)
     {

@@ -131,7 +131,135 @@ public sealed class GitCommandServiceTests : IDisposable
         Assert.False(result.Success);
     }
 
+    // --- Push ---------------------------------------------------------------
+
+    [Fact]
+    public async Task A_first_push_creates_the_branch_on_origin_and_tracks_it()
+    {
+        var dir = InitRepo("firstpush");
+        Commit(dir, "a.txt", "one");
+        RenameCurrentBranch(dir, "main");
+        var remote = AddBareRemote(dir);
+
+        Assert.False(HasUpstream(dir));
+
+        var result = await _service.PushAsync(dir, "main", setUpstream: true);
+
+        Assert.True(result.Success, result.Message);
+        Assert.True(RemoteHasBranch(remote, "main"));
+        Assert.True(HasUpstream(dir));
+    }
+
+    [Fact]
+    public async Task A_feature_branch_the_remote_has_never_seen_can_be_published()
+    {
+        var dir = InitRepo("publish");
+        Commit(dir, "a.txt", "one");
+        RenameCurrentBranch(dir, "main");
+        var remote = AddBareRemote(dir);
+        await _service.PushAsync(dir, "main", setUpstream: true);
+
+        await _service.CheckoutBranchAsync(dir, "main");
+        CreateBranch(dir, "feature");
+        await _service.CheckoutBranchAsync(dir, "feature");
+        Commit(dir, "b.txt", "two");
+
+        var result = await _service.PushAsync(dir, "feature", setUpstream: true);
+
+        Assert.True(result.Success, result.Message);
+        Assert.True(RemoteHasBranch(remote, "feature"));
+        Assert.Contains("upstream", result.Message);
+    }
+
+    [Fact]
+    public async Task A_later_push_sends_new_commits_without_republishing()
+    {
+        var dir = InitRepo("secondpush");
+        Commit(dir, "a.txt", "one");
+        RenameCurrentBranch(dir, "main");
+        var remote = AddBareRemote(dir);
+        await _service.PushAsync(dir, "main", setUpstream: true);
+
+        var sha = Commit(dir, "b.txt", "two");
+
+        var result = await _service.PushAsync(dir, "main", setUpstream: false);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(sha, RemoteTip(remote, "main"));
+    }
+
+    /// <summary>
+    /// The remote moved on without this clone. Git refuses, and the refusal is passed
+    /// through as a failure — nothing here retries with --force.
+    /// </summary>
+    [Fact]
+    public async Task A_push_the_remote_rejects_is_reported_and_leaves_it_alone()
+    {
+        var dir = InitRepo("rejected");
+        Commit(dir, "a.txt", "one");
+        RenameCurrentBranch(dir, "main");
+        var remote = AddBareRemote(dir);
+        await _service.PushAsync(dir, "main", setUpstream: true);
+
+        // A second clone pushes a commit this one does not have. The bare repository's
+        // HEAD still names the branch `git init` made, which the first push never
+        // created, so the clone lands on nothing until main is checked out explicitly.
+        var other = Path.Combine(_root, "other");
+        Repository.Clone(remote, other);
+        var checkout = await _service.CheckoutBranchAsync(other, "main");
+        Assert.True(checkout.Success, checkout.Message);
+
+        var theirs = Commit(other, "c.txt", "three");
+        var theirPush = await _service.PushAsync(other, "main", setUpstream: false);
+        Assert.True(theirPush.Success, theirPush.Message);
+
+        Commit(dir, "b.txt", "two");
+        var result = await _service.PushAsync(dir, "main", setUpstream: false);
+
+        Assert.False(result.Success);
+        Assert.Contains("reject", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(theirs, RemoteTip(remote, "main"));
+    }
+
+    [Fact]
+    public async Task Pushing_with_no_repository_path_fails_cleanly()
+    {
+        var result = await _service.PushAsync(string.Empty, "main", setUpstream: false);
+
+        Assert.False(result.Success);
+        Assert.Contains("repository", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     // --- helpers ------------------------------------------------------------
+
+    /// <summary>Gives the repository an origin: a bare repository beside it on disk.</summary>
+    private string AddBareRemote(string dir)
+    {
+        var remotePath = Path.Combine(_root, Path.GetFileName(dir) + ".git");
+        Repository.Init(remotePath, isBare: true);
+
+        using var repo = new Repository(dir);
+        repo.Network.Remotes.Add("origin", remotePath);
+        return remotePath;
+    }
+
+    private static bool RemoteHasBranch(string remotePath, string branch)
+    {
+        using var remote = new Repository(remotePath);
+        return remote.Branches[branch] is not null;
+    }
+
+    private static string? RemoteTip(string remotePath, string branch)
+    {
+        using var remote = new Repository(remotePath);
+        return remote.Branches[branch]?.Tip?.Sha;
+    }
+
+    private static bool HasUpstream(string dir)
+    {
+        using var repo = new Repository(dir);
+        return repo.Head.IsTracking;
+    }
 
     private string InitRepo(string name)
     {

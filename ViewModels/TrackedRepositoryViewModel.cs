@@ -79,8 +79,28 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
     [ObservableProperty]
     private bool _hasUnpushedCommits;
 
+    partial void OnHasUnpushedCommitsChanged(bool value) => NotifyCommands();
+
     [ObservableProperty]
     private string _unpushedText = string.Empty;
+
+    /// <summary>The branch is not on the remote yet, so a push has to create it there.</summary>
+    [ObservableProperty]
+    private bool _needsFirstPush;
+
+    partial void OnNeedsFirstPushChanged(bool value)
+    {
+        OnPropertyChanged(nameof(PushToOriginToolTip));
+        NotifyCommands();
+    }
+
+    /// <summary>
+    /// Explains which of the two pushes the button will do, since publishing a branch
+    /// for the first time also changes what the branch tracks from then on.
+    /// </summary>
+    public string PushToOriginToolTip => NeedsFirstPush
+        ? "This branch is not on origin yet. Pushing creates it there and sets it as the upstream."
+        : "Send this branch's commits to its upstream. Never force-pushes — a push the remote rejects is reported as-is.";
 
     [ObservableProperty]
     private bool _isBehind;
@@ -163,11 +183,13 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
 
             HasUnpushedCommits = status.HasUnpushedCommits;
             UnpushedText = status.AheadBy == 1 ? "1 unpushed commit" : $"{status.AheadBy} unpushed commits";
+            NeedsFirstPush = status.NeedsFirstPush;
 
             IsBehind = status.BehindBy > 0;
             BehindText = status.BehindBy == 1 ? "1 commit behind" : $"{status.BehindBy} commits behind";
 
-            IsClean = status.IsValid && !status.HasUncommittedChanges && !status.HasUnpushedCommits;
+            IsClean = status.IsValid && !status.HasUncommittedChanges &&
+                      !status.HasUnpushedCommits && !status.NeedsFirstPush;
         }
         finally
         {
@@ -295,6 +317,53 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
         }
     }
 
+    // --- Push ---------------------------------------------------------------
+
+    private bool CanPush() => !IsBusy && IsValid && HasRemote && (HasUnpushedCommits || NeedsFirstPush);
+
+    [RelayCommand(CanExecute = nameof(CanPush))]
+    private async Task PushToOrigin()
+    {
+        var result = await PushAsync();
+        if (result.Success)
+            _owner.Report($"{Name}: {result.Message}");
+        else
+            _owner.ReportError($"{Name}: {result.Message}");
+    }
+
+    /// <summary>
+    /// Pushes the checked-out branch and re-reads the status. A branch with no
+    /// upstream is published to origin and starts tracking it; one that already has
+    /// an upstream goes where it already points. Returns the raw result so a caller
+    /// can tally outcomes itself.
+    /// </summary>
+    public async Task<GitCommandResult> PushAsync()
+    {
+        if (IsBusy)
+            return new GitCommandResult(false, "Busy.");
+        if (!HasRemote)
+            return new GitCommandResult(false, "This repository has no remote to push to.");
+
+        IsBusy = true;
+        _owner.BeginOperation($"Pushing {CurrentBranch} in {Name}…");
+        try
+        {
+            var result = await _gitCommands.PushAsync(Path, CurrentBranch, setUpstream: NeedsFirstPush);
+            await RefreshAsync();
+            return result;
+        }
+        catch (Exception ex)
+        {
+            await RefreshAsync();
+            return new GitCommandResult(false, $"Push failed: {ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+            _owner.EndOperation();
+        }
+    }
+
     // --- Uncommitted changes ------------------------------------------------
 
     private bool CanActOnUncommittedChanges() => !IsBusy && IsValid && HasUncommittedChanges;
@@ -404,5 +473,6 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
         NewBranchCommand.NotifyCanExecuteChanged();
         CommitChangesCommand.NotifyCanExecuteChanged();
         DiscardChangesCommand.NotifyCanExecuteChanged();
+        PushToOriginCommand.NotifyCanExecuteChanged();
     }
 }

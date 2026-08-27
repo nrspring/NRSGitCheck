@@ -52,6 +52,18 @@ public interface IGitCommandService
         string workingDirectory, string branch, CancellationToken ct = default);
 
     /// <summary>
+    /// Sends the checked-out branch's commits to the remote. When
+    /// <paramref name="setUpstream"/> is set the branch does not exist on the remote
+    /// yet, so this publishes it to <c>origin</c> and starts tracking it
+    /// (<c>git push --set-upstream origin branch</c>); otherwise it is a plain
+    /// <c>git push</c> to wherever the branch already tracks. Never forces: a push
+    /// the remote rejects because it has commits this clone lacks comes back as a
+    /// failed result carrying Git's own words, not as a rewritten remote branch.
+    /// </summary>
+    Task<GitCommandResult> PushAsync(
+        string workingDirectory, string branch, bool setUpstream, CancellationToken ct = default);
+
+    /// <summary>
     /// Stages everything in the working tree (<c>git add -A</c>) and commits it with
     /// the given message. Anything Git refuses — an empty message, no configured
     /// identity, a failing pre-commit hook — comes back as a failed result with

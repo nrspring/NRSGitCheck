@@ -193,12 +193,22 @@
                         <TextBlock Text="{Binding BehindText}" Foreground="{DynamicResource AppMutedText}" />
                       </Border>
 
+                      <!-- Explains why Push is offered on a branch with no unpushed
+                           count: the branch itself has never reached the remote. -->
+                      <Border Classes="badge" Background="{DynamicResource AppMutedFill}"
+                              IsVisible="{Binding NeedsFirstPush}">
+                        <TextBlock Text="not on origin" Foreground="{DynamicResource AppMutedText}" />
+                      </Border>
+
                       <TextBlock Text="clean" FontSize="11" Opacity="0.5"
                                  VerticalAlignment="Center"
                                  IsVisible="{Binding IsClean}" />
                     </StackPanel>
 
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                      <Button Content="Push to origin"
+                              Command="{Binding PushToOriginCommand}"
+                              ToolTip.Tip="{Binding PushToOriginToolTip}" />
                       <Button Content="New branch…"
                               Command="{Binding NewBranchCommand}"
                               ToolTip.Tip="Create a branch here, starting from the checked-out branch" />

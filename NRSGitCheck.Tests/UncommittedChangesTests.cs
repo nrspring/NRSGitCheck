@@ -48,6 +48,20 @@ public sealed class UncommittedChangesTests
                 : new GitCommandResult(true, "Reverted tracked files."));
         }
 
+        public List<(string Path, string Branch, bool SetUpstream)> Pushes { get; } = new();
+
+        /// <summary>Set to make the next push come back as a refusal from Git.</summary>
+        public string? PushRefusal { get; set; }
+
+        public Task<GitCommandResult> PushAsync(
+            string workingDirectory, string branch, bool setUpstream, CancellationToken ct = default)
+        {
+            Pushes.Add((workingDirectory, branch, setUpstream));
+            return Task.FromResult(PushRefusal is { } refusal
+                ? new GitCommandResult(false, refusal)
+                : new GitCommandResult(true, setUpstream ? $"Pushed {branch} to origin and set it as the upstream." : $"Pushed {branch} to its upstream."));
+        }
+
         public Task<GitCommandResult> PullMainAsync(
             string workingDirectory, string? mainBranch, string? currentBranch, CancellationToken ct = default) =>
             Task.FromResult(new GitCommandResult(true, "up to date"));
