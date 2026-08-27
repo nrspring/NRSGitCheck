@@ -206,6 +206,9 @@
                     </StackPanel>
 
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                      <Button Content="Open in VS Code"
+                              Command="{Binding OpenInEditorCommand}"
+                              ToolTip.Tip="{Binding OpenInEditorToolTip}" />
                       <Button Content="Push to origin"
                               Command="{Binding PushToOriginCommand}"
                               ToolTip.Tip="{Binding PushToOriginToolTip}" />

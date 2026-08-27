@@ -157,7 +157,8 @@ public sealed class NewBranchMultiRepoTests
             commands,
             new StubFolderPicker(),
             new RoslynExpressionEvaluator(),
-            new StubClipboard());
+            new StubClipboard(),
+            new RecordingEditorService());
 
         foreach (var row in repositories.Repositories)
             row.Apply(ValidStatus(row.Path));

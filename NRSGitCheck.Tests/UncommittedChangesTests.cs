@@ -140,6 +140,7 @@ public sealed class UncommittedChangesTests
     {
         public RecordingGitCommands Git { get; } = new();
         public StubStatusService Statuses { get; } = new();
+        public RecordingEditorService Editor { get; } = new();
         public RepositoriesViewModel Owner { get; }
         public TrackedRepositoryViewModel Row { get; }
 
@@ -149,7 +150,8 @@ public sealed class UncommittedChangesTests
             settings.Settings.TrackedRepositories.Add(new TrackedRepository { Path = @"C:\repo", Name = "repo" });
 
             Owner = new RepositoriesViewModel(
-                settings, Statuses, Git, new StubFolderPicker(), new StubEvaluator(), new StubClipboard());
+                settings, Statuses, Git, new StubFolderPicker(), new StubEvaluator(), new StubClipboard(),
+                Editor);
 
             Row = Owner.Repositories.Single();
             Row.Apply(initial ?? Status());

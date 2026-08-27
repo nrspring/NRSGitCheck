@@ -160,7 +160,8 @@ public sealed class ReturnToLocalTests : IDisposable
             new StubTheme(),
             new RepositoriesViewModel(
                 settings, new StubRepositoryStatus(), new RecordingGitCommands(),
-                new StubFolderPicker(), new RoslynExpressionEvaluator(), new StubClipboard()));
+                new StubFolderPicker(), new RoslynExpressionEvaluator(), new StubClipboard(),
+                new RecordingEditorService()));
 
         await vm.InitializeAsync();
         return vm;

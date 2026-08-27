@@ -23,6 +23,7 @@ public partial class RepositoriesViewModel : ViewModelBase
     private readonly IGitCommandService _gitCommands;
     private readonly IFolderPickerService _folderPicker;
     private readonly IClipboardService _clipboard;
+    private readonly IEditorService _editor;
 
     /// <summary>Nesting count for in-flight operations, so overlapping rows keep the tab busy.</summary>
     private int _operationDepth;
@@ -36,13 +37,15 @@ public partial class RepositoriesViewModel : ViewModelBase
         IGitCommandService gitCommands,
         IFolderPickerService folderPicker,
         IExpressionEvaluator evaluator,
-        IClipboardService clipboard)
+        IClipboardService clipboard,
+        IEditorService editor)
     {
         _settings = settings;
         _statusService = statusService;
         _gitCommands = gitCommands;
         _folderPicker = folderPicker;
         _clipboard = clipboard;
+        _editor = editor;
 
         NewBranch = new NewBranchViewModel(settings, evaluator, gitCommands);
         NewBranch.Created += OnBranchCreated;
@@ -385,7 +388,7 @@ public partial class RepositoriesViewModel : ViewModelBase
     public void NotifyRowStateChanged() => NotifyBulkCommands();
 
     private TrackedRepositoryViewModel CreateRow(TrackedRepository tracked) =>
-        new(this, _gitCommands, _statusService, _clipboard, tracked);
+        new(this, _gitCommands, _statusService, _clipboard, _editor, tracked);
 
     private void NotifyBulkCommands()
     {

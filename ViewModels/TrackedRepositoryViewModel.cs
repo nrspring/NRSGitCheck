@@ -19,6 +19,7 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
     private readonly IGitCommandService _gitCommands;
     private readonly IRepositoryStatusService _statusService;
     private readonly IClipboardService _clipboard;
+    private readonly IEditorService _editor;
 
     /// <summary>Guards the branch picker while a refresh writes the checked-out branch into it.</summary>
     private bool _applyingStatus;
@@ -28,12 +29,14 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
         IGitCommandService gitCommands,
         IRepositoryStatusService statusService,
         IClipboardService clipboard,
+        IEditorService editor,
         TrackedRepository model)
     {
         _owner = owner;
         _gitCommands = gitCommands;
         _statusService = statusService;
         _clipboard = clipboard;
+        _editor = editor;
 
         Path = model.Path;
         _name = string.IsNullOrWhiteSpace(model.Name) ? model.Path : model.Name;
@@ -456,6 +459,28 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
     [RelayCommand]
     private void Remove() => _owner.Remove(this);
 
+    /// <summary>
+    /// Whether the editor could be opened: it has to be installed, and the row has to
+    /// point at a folder that is actually there.
+    /// </summary>
+    private bool CanOpenInEditor() => IsValid && _editor.IsAvailable;
+
+    /// <summary>Hands this repository's folder to the editor.</summary>
+    [RelayCommand(CanExecute = nameof(CanOpenInEditor))]
+    private void OpenInEditor()
+    {
+        var result = _editor.Open(Path);
+        if (result.Success)
+            _owner.Report($"{Name}: {result.Message}");
+        else
+            _owner.ReportError($"{Name}: {result.Message}");
+    }
+
+    /// <summary>Says why the button is dead when the editor is not installed.</summary>
+    public string OpenInEditorToolTip => _editor.IsAvailable
+        ? $"Open this repository folder in {_editor.Name}"
+        : $"{_editor.Name} was not found on this machine";
+
     /// <summary>Puts this repository's path on the clipboard.</summary>
     [RelayCommand]
     private async Task CopyPath()
@@ -471,6 +496,7 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
         SwitchToMainCommand.NotifyCanExecuteChanged();
         PullMainCommand.NotifyCanExecuteChanged();
         NewBranchCommand.NotifyCanExecuteChanged();
+        OpenInEditorCommand.NotifyCanExecuteChanged();
         CommitChangesCommand.NotifyCanExecuteChanged();
         DiscardChangesCommand.NotifyCanExecuteChanged();
         PushToOriginCommand.NotifyCanExecuteChanged();

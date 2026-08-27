@@ -27,6 +27,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The test project exercises a few internals directly — the editor lookup
+         against a fake filesystem — rather than widening the public surface for it. -->
+    <InternalsVisibleTo Include="NRSGitCheck.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Phase 0 foundation: MVVM base + DI composition root. -->
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />

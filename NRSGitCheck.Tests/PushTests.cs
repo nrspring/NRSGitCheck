@@ -304,7 +304,8 @@ public sealed class PushTests : IDisposable
             settings.Settings.TrackedRepositories.Add(new TrackedRepository { Path = @"C:\repo", Name = "repo" });
 
             Owner = new RepositoriesViewModel(
-                settings, Statuses, Git, new StubFolderPicker(), new StubEvaluator(), new StubClipboard());
+                settings, Statuses, Git, new StubFolderPicker(), new StubEvaluator(), new StubClipboard(),
+                new RecordingEditorService());
 
             Statuses.Next = initial;
             Row = Owner.Repositories.Single();

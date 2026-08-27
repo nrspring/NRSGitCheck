@@ -110,7 +110,7 @@ public sealed class FileNavigationTests : IDisposable
     /// <summary>The Repositories tab is inert in these tests; it just has to exist.</summary>
     private static RepositoriesViewModel Repositories(ISettingsService settings) =>
         new(settings, new StubRepositoryStatus(), new StubGitCommands(), new StubFolderPicker(),
-            new RoslynExpressionEvaluator(), new StubClipboard());
+            new RoslynExpressionEvaluator(), new StubClipboard(), new RecordingEditorService());
 
     private sealed class StubRepositoryStatus : IRepositoryStatusService
     {

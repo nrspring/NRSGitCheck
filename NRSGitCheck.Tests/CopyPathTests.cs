@@ -65,7 +65,8 @@ public sealed class CopyPathTests
             new StubGitCommands(),
             new StubFolderPicker(),
             new RoslynExpressionEvaluator(),
-            clipboard);
+            clipboard,
+            new RecordingEditorService());
     }
 
     private sealed class StubClipboard : IClipboardService

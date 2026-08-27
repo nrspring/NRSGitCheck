@@ -55,6 +55,7 @@ public partial class App : Application
         services.AddSingleton<IThemeService, ThemeService>();
         services.AddSingleton<IFolderPickerService, FolderPickerService>();
         services.AddSingleton<IClipboardService, ClipboardService>();
+        services.AddSingleton<IEditorService, VsCodeService>();
 
         // Views
         services.AddTransient<MainWindow>();
