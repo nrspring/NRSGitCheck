@@ -18,6 +18,12 @@ internal static class DiffPalette
     public static readonly IBrush EmptyCell = new SolidColorBrush(Color.Parse("#0A808080"));
     public static readonly IBrush AddedWord = new SolidColorBrush(Color.Parse("#5528A745"));
     public static readonly IBrush RemovedWord = new SolidColorBrush(Color.Parse("#55E05252"));
+
+    // Scrollbar overview strip. The lane is a barely-there groove; the ticks are far
+    // more opaque than the line tints because they are only a few pixels wide.
+    public static readonly IBrush MapLane = new SolidColorBrush(Color.Parse("#0F808080"));
+    public static readonly IBrush AddedMarker = new SolidColorBrush(Color.Parse("#CC28A745"));
+    public static readonly IBrush RemovedMarker = new SolidColorBrush(Color.Parse("#CCE05252"));
 }
 
 /// <summary>Maps a <see cref="DiffLineKind"/> to the line's background tint (FR-18).</summary>
