@@ -233,6 +233,46 @@
     </Panel>
   </DockPanel>
 
+  <!-- Base-branch confirmation: shown first, so the user sees what the new branch will start from. -->
+  <Border x:DataType="vm:NewBranchViewModel"
+          DataContext="{Binding NewBranch}"
+          IsVisible="{Binding IsConfirmingBase}"
+          Background="#99000000">
+    <Border Classes="card" Padding="24" MinWidth="420" MaxWidth="560"
+            HorizontalAlignment="Center" VerticalAlignment="Center">
+      <StackPanel Spacing="14">
+        <TextBlock Text="Create a new branch?" FontSize="18" FontWeight="SemiBold" />
+        <TextBlock Opacity="0.7" TextWrapping="Wrap"
+                   Text="The new branch will be based on the currently checked-out branch:" />
+
+        <StackPanel Spacing="4" IsVisible="{Binding !HasMultipleTargets}">
+          <StackPanel Orientation="Horizontal" Spacing="5">
+            <TextBlock Text="{Binding RepositoryName}" FontWeight="SemiBold" />
+            <TextBlock Text="from" Opacity="0.6" />
+            <TextBlock Text="{Binding SourceBranch}" FontFamily="Cascadia Code,Consolas,monospace" />
+          </StackPanel>
+        </StackPanel>
+
+        <ItemsControl ItemsSource="{Binding Targets}" IsVisible="{Binding HasMultipleTargets}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:NewBranchTargetViewModel">
+              <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,1,0,0">
+                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                <TextBlock Text="from" Opacity="0.6" />
+                <TextBlock Text="{Binding Branch}" FontFamily="Cascadia Code,Consolas,monospace" />
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+          <Button Content="Cancel" Command="{Binding CancelBaseCommand}" />
+          <Button Content="OK" Command="{Binding ConfirmBaseCommand}" Classes="accent" IsDefault="True" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+  </Border>
+
   <!-- Create-branch dialog: one field per token in the pattern, seeded from that
        token's expression and editable before the branch is created. -->
   <Border x:DataType="vm:NewBranchViewModel"

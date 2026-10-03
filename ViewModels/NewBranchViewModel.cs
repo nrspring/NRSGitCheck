@@ -87,15 +87,42 @@ public partial class NewBranchViewModel : ViewModelBase
     /// shared across every target — only per-repository state (name, current branch)
     /// varies.
     /// </summary>
-    public async Task OpenAsync(IReadOnlyList<TrackedRepositoryViewModel> repositories)
+    public Task OpenAsync(IReadOnlyList<TrackedRepositoryViewModel> repositories)
     {
         if (repositories.Count == 0)
-            return;
+            return Task.CompletedTask;
 
         SetTargets(repositories);
         Error = null;
         IsBusy = false;
+        IsVisible = false;
+        IsConfirmingBase = true;
+        return Task.CompletedTask;
+    }
 
+    /// <summary>Whether the base-branch confirmation popup is showing, ahead of the name dialog.</summary>
+    [ObservableProperty]
+    private bool _isConfirmingBase;
+
+    /// <summary>Accepts the base branch and moves on to the name dialog.</summary>
+    [RelayCommand]
+    private async Task ConfirmBase()
+    {
+        IsConfirmingBase = false;
+        await ShowNameDialogAsync();
+    }
+
+    /// <summary>Dismisses the base-branch confirmation without creating anything.</summary>
+    [RelayCommand]
+    private void CancelBase()
+    {
+        IsConfirmingBase = false;
+        _targets = Array.Empty<TrackedRepositoryViewModel>();
+        Targets.Clear();
+    }
+
+    private async Task ShowNameDialogAsync()
+    {
         Pattern = _settings.Settings.NewBranchPattern ?? string.Empty;
         var names = BranchPattern.ParseTokens(Pattern);
         HasPattern = names.Count > 0;
