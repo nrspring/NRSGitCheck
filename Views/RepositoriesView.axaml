@@ -166,7 +166,7 @@
                       <Button Classes="badge"
                               IsVisible="{Binding HasUncommittedChanges}"
                               IsEnabled="{Binding !IsBusy}"
-                              ToolTip.Tip="Commit or discard the changes in this repository">
+                              ToolTip.Tip="{Binding UncommittedToolTip}">
                         <StackPanel Orientation="Horizontal" Spacing="5">
                           <TextBlock Text="{Binding UncommittedText}"
                                      Foreground="{DynamicResource AppWarnText}"

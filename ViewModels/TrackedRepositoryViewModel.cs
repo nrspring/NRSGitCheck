@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -183,6 +184,8 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
             UncommittedText = status.UncommittedCount == 1
                 ? "1 uncommitted change"
                 : $"{status.UncommittedCount} uncommitted changes";
+
+            UncommittedToolTip = BuildUncommittedToolTip(status);
 
             HasUnpushedCommits = status.HasUnpushedCommits;
             UnpushedText = status.AheadBy == 1 ? "1 unpushed commit" : $"{status.AheadBy} unpushed commits";
@@ -368,6 +371,31 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
     }
 
     // --- Uncommitted changes ------------------------------------------------
+
+    private const int ToolTipFileLimit = 10;
+
+    /// <summary>Hover text for the uncommitted badge: the first few changed files.</summary>
+    [ObservableProperty]
+    private string _uncommittedToolTip = string.Empty;
+
+    private static string BuildUncommittedToolTip(RepositoryStatus status)
+    {
+        if (!status.HasUncommittedChanges)
+            return string.Empty;
+
+        var lines = status.Changes
+            .Take(ToolTipFileLimit)
+            .Select(c => $"{c.Marker}  {c.Path}")
+            .ToList();
+
+        var more = status.UncommittedCount - lines.Count;
+        if (more > 0)
+            lines.Add($"…and {more} more");
+
+        lines.Add(string.Empty);
+        lines.Add("Click to commit or discard the changes");
+        return string.Join(Environment.NewLine, lines);
+    }
 
     private bool CanActOnUncommittedChanges() => !IsBusy && IsValid && HasUncommittedChanges;
 
