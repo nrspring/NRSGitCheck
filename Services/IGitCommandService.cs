@@ -18,7 +18,7 @@ public sealed record GitCommandResult(bool Success, string Message)
 /// <summary>
 /// The one place the application is allowed to *write* to a repository. Kept apart
 /// from the strictly read-only <see cref="IGitService"/> so that contract is not
-/// weakened: nothing here runs unless the user presses Pull main.
+/// weakened: nothing here runs except in response to a button the user pressed.
 /// </summary>
 public interface IGitCommandService
 {

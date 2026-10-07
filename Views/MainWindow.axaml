@@ -160,7 +160,7 @@
                         Margin="6,0,0,0"
                         ToolTip.Tip="Leave this pull request: check the branch you came from back out and show your uncommitted changes" />
 
-                <!-- The only action that writes to the repository: fast-forward main from its remote. -->
+                <!-- Fast-forward main from its remote. Never merges or rebases; a diverged main is refused. -->
                 <Button Command="{Binding PullMainCommand}"
                         VerticalAlignment="Center"
                         Margin="6,0,0,0"
