@@ -33,7 +33,7 @@ public sealed class NewBranchMultiRepoTests
     }
 
     [Fact]
-    public void Opening_for_the_selection_targets_every_checked_repository()
+    public async Task Opening_for_the_selection_targets_every_checked_repository()
     {
         var repositories = Build("repo-a", "repo-b", "repo-c");
         repositories.Repositories[0].IsSelected = true;
@@ -41,6 +41,13 @@ public sealed class NewBranchMultiRepoTests
 
         repositories.NewBranchForSelectedCommand.Execute(null);
 
+        // The base-branch confirmation comes first; the name dialog waits for it.
+        Assert.True(repositories.NewBranch.IsConfirmingBase);
+        Assert.False(repositories.NewBranch.IsVisible);
+
+        await repositories.NewBranch.ConfirmBaseCommand.ExecuteAsync(null);
+
+        Assert.False(repositories.NewBranch.IsConfirmingBase);
         Assert.True(repositories.NewBranch.IsVisible);
         Assert.True(repositories.NewBranch.HasMultipleTargets);
         Assert.Equal(
@@ -56,7 +63,7 @@ public sealed class NewBranchMultiRepoTests
         repositories.Repositories[0].IsSelected = true;
         repositories.Repositories[1].IsSelected = true;
 
-        repositories.NewBranchForSelectedCommand.Execute(null);
+        await OpenForSelection(repositories);
         repositories.NewBranch.BranchName = "feature/shared";
         await repositories.NewBranch.CreateCommand.ExecuteAsync(null);
 
@@ -76,7 +83,7 @@ public sealed class NewBranchMultiRepoTests
         repositories.Repositories[0].IsSelected = true;
         repositories.Repositories[1].IsSelected = true;
 
-        repositories.NewBranchForSelectedCommand.Execute(null);
+        await OpenForSelection(repositories);
         repositories.NewBranch.BranchName = "feature/shared";
         await repositories.NewBranch.CreateCommand.ExecuteAsync(null);
 
@@ -92,7 +99,7 @@ public sealed class NewBranchMultiRepoTests
         repositories.Repositories[0].IsSelected = true;
         repositories.Repositories[1].IsSelected = true;
 
-        repositories.NewBranchForSelectedCommand.Execute(null);
+        await OpenForSelection(repositories);
         repositories.NewBranch.BranchName = "feature/shared";
         await repositories.NewBranch.CreateCommand.ExecuteAsync(null);
 
@@ -115,7 +122,7 @@ public sealed class NewBranchMultiRepoTests
         repositories.Repositories[0].IsSelected = true;
         repositories.Repositories[1].IsSelected = true;
 
-        repositories.NewBranchForSelectedCommand.Execute(null);
+        await OpenForSelection(repositories);
         repositories.NewBranch.BranchName = "feature/shared";
         await repositories.NewBranch.CreateCommand.ExecuteAsync(null);
 
@@ -141,6 +148,13 @@ public sealed class NewBranchMultiRepoTests
     }
 
     // --- harness --------------------------------------------------------------
+
+    /// <summary>Opens the dialog for the checked rows and accepts the base-branch confirmation.</summary>
+    private static async Task OpenForSelection(RepositoriesViewModel repositories)
+    {
+        repositories.NewBranchForSelectedCommand.Execute(null);
+        await repositories.NewBranch.ConfirmBaseCommand.ExecuteAsync(null);
+    }
 
     private static RepositoriesViewModel Build(params string[] names) =>
         Build(new RecordingGitCommands(), names);
