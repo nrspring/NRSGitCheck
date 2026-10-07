@@ -354,6 +354,60 @@ public partial class RepositoriesViewModel : ViewModelBase
         }
     }
 
+    // --- Bulk switch to main ------------------------------------------------
+
+    private bool CanSwitchAllToMain() =>
+        !IsBusy && Repositories.Any(r => r.BulkSwitchTarget is not null);
+
+    /// <summary>
+    /// Checks out main — or master — in every repository that is on another branch
+    /// and has no uncommitted changes. Dirty repositories are skipped, never
+    /// stashed or discarded. Branches are left in place, so unpushed commits stay
+    /// reachable on the branch being left.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanSwitchAllToMain))]
+    private async Task SwitchAllToMain()
+    {
+        var targets = Repositories
+            .Select(r => (Row: r, Main: r.BulkSwitchTarget))
+            .Where(t => t.Main is not null)
+            .ToList();
+        if (targets.Count == 0)
+            return;
+
+        var skippedDirty = Repositories.Count(r => r.IsValid && r.HasUncommittedChanges && !r.IsOnMainBranch);
+
+        ErrorMessage = null;
+        BeginOperation($"Switching {targets.Count} repositories to main…");
+        try
+        {
+            var succeeded = 0;
+            var failures = new List<string>();
+
+            foreach (var (row, main) in targets)
+            {
+                var result = await row.SwitchToBranchAsync(main!);
+                if (result.Success)
+                    succeeded++;
+                else
+                    failures.Add($"{row.Name}: {result.Message}");
+            }
+
+            var summary = $"Switched {succeeded} of {targets.Count} repositories to main.";
+            if (failures.Count > 0)
+                summary = $"Switched {succeeded} of {targets.Count}; {failures.Count} failed.";
+            if (skippedDirty > 0)
+                summary += $" Skipped {skippedDirty} with uncommitted changes.";
+
+            Status = summary;
+            ErrorMessage = failures.Count > 0 ? string.Join("  ", failures) : null;
+        }
+        finally
+        {
+            EndOperation();
+        }
+    }
+
     // --- Shared operation plumbing (used by the rows) -----------------------
 
     /// <summary>Marks the tab busy and shows what is happening. Pairs with <see cref="EndOperation"/>.</summary>
@@ -395,6 +449,7 @@ public partial class RepositoriesViewModel : ViewModelBase
         AddRepositoryCommand.NotifyCanExecuteChanged();
         RefreshAllCommand.NotifyCanExecuteChanged();
         PullAllOnMainCommand.NotifyCanExecuteChanged();
+        SwitchAllToMainCommand.NotifyCanExecuteChanged();
         NewBranchForSelectedCommand.NotifyCanExecuteChanged();
     }
 }

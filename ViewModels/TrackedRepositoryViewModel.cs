@@ -233,10 +233,10 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
     /// snaps back to whatever is actually checked out. Nothing is stashed or
     /// discarded on the user's behalf.
     /// </summary>
-    public async Task SwitchToBranchAsync(string branch)
+    public async Task<GitCommandResult> SwitchToBranchAsync(string branch)
     {
         if (IsBusy)
-            return;
+            return new GitCommandResult(false, "Busy.");
 
         IsBusy = true;
         _owner.BeginOperation($"Checking out {branch} in {Name}…");
@@ -249,11 +249,15 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
                 _owner.Report($"{Name}: checked out {branch}.");
             else
                 _owner.ReportError($"{Name}: {result.Message}");
+
+            return result;
         }
         catch (Exception ex)
         {
-            _owner.ReportError($"{Name}: could not switch branch — {ex.Message}");
+            var message = $"could not switch branch — {ex.Message}";
+            _owner.ReportError($"{Name}: {message}");
             await RefreshAsync();
+            return new GitCommandResult(false, message);
         }
         finally
         {
@@ -265,6 +269,18 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
     private bool CanSwitchToMain() =>
         !IsBusy && IsValid && !IsOnMainBranch && _localMainBranch is { Length: > 0 } main &&
         LocalBranches.Contains(main);
+
+    /// <summary>
+    /// The local main branch a bulk "switch all to main" would check out, or null
+    /// when this repository should be left alone: unreadable, already on main, no
+    /// local main to go to, or carrying uncommitted work. The last is the point of
+    /// the bulk action — it only ever moves repositories that have nothing to lose.
+    /// </summary>
+    public string? BulkSwitchTarget =>
+        IsValid && !HasUncommittedChanges && !IsOnMainBranch &&
+        _localMainBranch is { Length: > 0 } main && LocalBranches.Contains(main)
+            ? main
+            : null;
 
     [RelayCommand(CanExecute = nameof(CanSwitchToMain))]
     private async Task SwitchToMain()
