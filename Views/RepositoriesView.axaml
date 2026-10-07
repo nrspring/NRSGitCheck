@@ -61,6 +61,35 @@
       </StackPanel>
     </Border>
 
+    <!-- GitHub CLI missing or signed out: the branch lists still work, minus PR status. -->
+    <Border DockPanel.Dock="Top"
+            IsVisible="{Binding ShowGitHubBanner}"
+            Background="{DynamicResource AppWarnFill}"
+            Padding="16,9">
+      <Grid ColumnDefinitions="*,Auto,Auto">
+        <TextBlock Grid.Column="0"
+                   Text="{Binding GitHubBannerText}"
+                   Foreground="{DynamicResource AppWarnText}"
+                   FontSize="12"
+                   TextWrapping="Wrap"
+                   VerticalAlignment="Center" />
+        <Button Grid.Column="1"
+                Content="Check again"
+                Command="{Binding RecheckGitHubCliCommand}"
+                Margin="12,0,0,0"
+                VerticalAlignment="Center"
+                ToolTip.Tip="Look for gh again — no restart needed after installing it or signing in" />
+        <Button Grid.Column="2"
+                Classes="ghost"
+                Content="✕"
+                Command="{Binding DismissGitHubBannerCommand}"
+                Padding="9,3"
+                Margin="6,0,0,0"
+                VerticalAlignment="Center"
+                ToolTip.Tip="Hide this until the app is restarted" />
+      </Grid>
+    </Border>
+
     <Panel>
 
       <!-- Empty state -->
@@ -211,6 +240,9 @@
                     </StackPanel>
 
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                      <Button Content="Branches…"
+                              Command="{Binding ShowBranchesCommand}"
+                              ToolTip.Tip="List this repository's local branches, with their last commit and pull request, and delete ones you are done with" />
                       <Button Content="Open in VS Code"
                               Command="{Binding OpenInEditorCommand}"
                               ToolTip.Tip="{Binding OpenInEditorToolTip}" />
@@ -602,6 +634,171 @@
           <Button Content="Cancel" Command="{Binding CancelCommand}" IsEnabled="{Binding !IsBusy}"
                   IsDefault="True" />
           <Button Content="Discard changes" Command="{Binding DiscardCommand}" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+  </Border>
+
+  <!-- Branch list: every local branch with its last commit and pull request, and a
+       two-step delete. Branches show straight away; PRs fill in when gh answers. -->
+  <Border x:DataType="vm:BranchListViewModel"
+          DataContext="{Binding BranchList}"
+          IsVisible="{Binding IsVisible}"
+          Background="#99000000">
+    <Border Classes="card" Padding="24" MinWidth="760" MaxWidth="920"
+            HorizontalAlignment="Center" VerticalAlignment="Center">
+      <StackPanel Spacing="12">
+
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Grid.Column="0" Spacing="3">
+            <TextBlock Text="Branches" FontSize="18" FontWeight="SemiBold" />
+            <StackPanel Orientation="Horizontal" Spacing="5">
+              <TextBlock Text="in" Opacity="0.6" />
+              <TextBlock Text="{Binding RepositoryName}" FontWeight="SemiBold" />
+              <TextBlock Text="·" Opacity="0.4" />
+              <TextBlock Text="{Binding Summary}" Opacity="0.6" />
+            </StackPanel>
+          </StackPanel>
+          <ProgressBar Grid.Column="1"
+                       IsIndeterminate="True"
+                       IsVisible="{Binding IsLoadingPullRequests}"
+                       Width="90" Height="4"
+                       VerticalAlignment="Center"
+                       ToolTip.Tip="Asking GitHub for pull requests…" />
+        </Grid>
+
+        <TextBlock Text="{Binding PullRequestNote}"
+                   IsVisible="{Binding HasPullRequestNote}"
+                   Opacity="0.65" FontSize="12" TextWrapping="Wrap" />
+
+        <TextBlock Text="Reading branches…" Opacity="0.6" IsVisible="{Binding IsLoading}" />
+
+        <TextBlock Text="{Binding Error}"
+                   IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                   Foreground="{DynamicResource SystemControlErrorTextForegroundBrush}"
+                   TextWrapping="Wrap" />
+
+        <!-- Column headings, on the same grid as the rows below. -->
+        <Grid ColumnDefinitions="*,120,190,96" Margin="10,0">
+          <TextBlock Grid.Column="0" Text="Branch" Opacity="0.55" FontSize="11" />
+          <TextBlock Grid.Column="1" Text="Last commit" Opacity="0.55" FontSize="11" />
+          <TextBlock Grid.Column="2" Text="Pull request" Opacity="0.55" FontSize="11" />
+        </Grid>
+
+        <Border BorderBrush="{DynamicResource AppBorder}" BorderThickness="1" CornerRadius="6"
+                MaxHeight="460">
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Branches}" Margin="0,2">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:BranchItemViewModel">
+                  <StackPanel Margin="10,6">
+                    <Grid ColumnDefinitions="*,120,190,96">
+
+                      <!-- Name, plus what Git alone can say about it. -->
+                      <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}"
+                                   FontFamily="Cascadia Code,Consolas,monospace" FontSize="12"
+                                   VerticalAlignment="Center"
+                                   MaxWidth="300" TextTrimming="CharacterEllipsis"
+                                   ToolTip.Tip="{Binding Name}" />
+                        <Border Classes="badge" Background="{DynamicResource AppInfoFill}"
+                                IsVisible="{Binding IsCurrent}">
+                          <TextBlock Text="checked out" Foreground="{DynamicResource AppInfoText}" />
+                        </Border>
+                        <Border Classes="badge" Background="{DynamicResource AppMutedFill}"
+                                IsVisible="{Binding ShowMergedIntoMain}"
+                                ToolTip.Tip="Every commit on this branch is already in main">
+                          <TextBlock Text="in main" Foreground="{DynamicResource AppMutedText}" />
+                        </Border>
+                        <Border Classes="badge" Background="{DynamicResource AppMutedFill}"
+                                IsVisible="{Binding IsUpstreamGone}"
+                                ToolTip.Tip="The remote branch this tracked has been deleted — often because its pull request was merged. As of the last fetch.">
+                          <TextBlock Text="remote gone" Foreground="{DynamicResource AppMutedText}" />
+                        </Border>
+                      </StackPanel>
+
+                      <TextBlock Grid.Column="1" Text="{Binding LastCommitText}"
+                                 ToolTip.Tip="{Binding LastCommitToolTip}"
+                                 FontSize="12" Opacity="0.8" VerticalAlignment="Center" />
+
+                      <!-- PR number and state, or why there is none to show. -->
+                      <Panel Grid.Column="2" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="6"
+                                    IsVisible="{Binding HasPullRequest}"
+                                    ToolTip.Tip="{Binding PullRequestToolTip}">
+                          <TextBlock Text="{Binding PullRequestText}" FontSize="12" VerticalAlignment="Center" />
+                          <Border Classes="badge" Background="{DynamicResource AppMergedFill}"
+                                  IsVisible="{Binding IsPullRequestMerged}">
+                            <TextBlock Text="{Binding PullRequestStateText}" Foreground="{DynamicResource AppMergedText}" />
+                          </Border>
+                          <Border Classes="badge" Background="{DynamicResource AppInfoFill}"
+                                  IsVisible="{Binding IsPullRequestOpen}">
+                            <TextBlock Text="{Binding PullRequestStateText}" Foreground="{DynamicResource AppInfoText}" />
+                          </Border>
+                          <Border Classes="badge" Background="{DynamicResource AppMutedFill}"
+                                  IsVisible="{Binding IsPullRequestClosed}">
+                            <TextBlock Text="{Binding PullRequestStateText}" Foreground="{DynamicResource AppMutedText}" />
+                          </Border>
+                        </StackPanel>
+                        <TextBlock Text="{Binding PullRequestPlaceholder}"
+                                   IsVisible="{Binding !HasPullRequest}"
+                                   FontSize="12" Opacity="0.45" />
+                      </Panel>
+
+                      <Button Grid.Column="3"
+                              Content="Delete…"
+                              Command="{Binding BeginDeleteCommand}"
+                              IsVisible="{Binding CanDelete}"
+                              HorizontalAlignment="Right"
+                              ToolTip.Tip="Delete this branch from this clone. The branch on GitHub, if any, is not touched." />
+                    </Grid>
+
+                    <!-- Step one: a plain confirmation. Git itself refuses if work would be lost. -->
+                    <Border IsVisible="{Binding IsConfirmingDelete}"
+                            Background="{DynamicResource AppMutedFill}"
+                            CornerRadius="6" Padding="10,8" Margin="0,6,0,0">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center"
+                                   Text="Delete this branch from this clone? The branch on GitHub is not touched." />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="10,0,0,0">
+                          <Button Content="Cancel" Command="{Binding CancelDeleteCommand}" IsEnabled="{Binding !IsBusy}" />
+                          <Button Content="Delete" Command="{Binding ConfirmDeleteCommand}" />
+                        </StackPanel>
+                      </Grid>
+                    </Border>
+
+                    <!-- Step two, only when Git refused: the branch has commits it cannot find elsewhere. -->
+                    <Border IsVisible="{Binding NeedsForceDelete}"
+                            Background="{DynamicResource AppWarnFill}"
+                            CornerRadius="6" Padding="10,8" Margin="0,6,0,0">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0" Spacing="3">
+                          <TextBlock Text="Not fully merged" FontWeight="SemiBold" FontSize="12"
+                                     Foreground="{DynamicResource AppWarnText}" />
+                          <TextBlock Text="{Binding ForceDeleteExplanation}" FontSize="12" TextWrapping="Wrap"
+                                     Foreground="{DynamicResource AppWarnText}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="10,0,0,0"
+                                    VerticalAlignment="Center">
+                          <Button Content="Keep it" Command="{Binding CancelDeleteCommand}" IsEnabled="{Binding !IsBusy}" />
+                          <Button Content="Delete anyway" Command="{Binding ForceDeleteCommand}" />
+                        </StackPanel>
+                      </Grid>
+                    </Border>
+
+                    <TextBlock Text="{Binding DeleteError}"
+                               IsVisible="{Binding DeleteError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                               Foreground="{DynamicResource SystemControlErrorTextForegroundBrush}"
+                               FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Border>
+
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+          <Button Content="Close" Command="{Binding CloseCommand}" IsDefault="True" />
         </StackPanel>
       </StackPanel>
     </Border>

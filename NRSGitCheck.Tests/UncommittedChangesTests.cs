@@ -21,6 +21,13 @@ public sealed class UncommittedChangesTests
 
     private sealed class RecordingGitCommands : IGitCommandService
     {
+
+        public System.Threading.Tasks.Task<GitCommandResult> DeleteBranchAsync(
+
+            string workingDirectory, string branch, bool force, System.Threading.CancellationToken ct = default) =>
+
+            System.Threading.Tasks.Task.FromResult(new GitCommandResult(true, $"Deleted branch {branch}."));
+
         public List<(string Path, string Message)> Commits { get; } = new();
         public List<(string Path, bool DeleteUntracked)> Discards { get; } = new();
 
@@ -151,7 +158,7 @@ public sealed class UncommittedChangesTests
 
             Owner = new RepositoriesViewModel(
                 settings, Statuses, Git, new StubFolderPicker(), new StubEvaluator(), new StubClipboard(),
-                Editor);
+                Editor, new FakeBranchInfo(), new FakeGitHubCli());
 
             Row = Owner.Repositories.Single();
             Row.Apply(initial ?? Status());

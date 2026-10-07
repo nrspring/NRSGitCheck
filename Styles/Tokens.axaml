@@ -39,6 +39,9 @@
       <SolidColorBrush x:Key="AppInfoText" Color="#2059C7" />
       <SolidColorBrush x:Key="AppMutedFill" Color="#14647285" />
       <SolidColorBrush x:Key="AppMutedText" Color="#546174" />
+      <!-- Merged pull requests, in the purple GitHub uses for them. -->
+      <SolidColorBrush x:Key="AppMergedFill" Color="#1F8250DF" />
+      <SolidColorBrush x:Key="AppMergedText" Color="#6E40C9" />
 
       <!-- Selected diff lines: a wash that sits under the add/remove tints. -->
       <SolidColorBrush x:Key="AppSelection" Color="#332F6FED" />
@@ -68,6 +71,8 @@
       <SolidColorBrush x:Key="AppInfoText" Color="#7FB0F9" />
       <SolidColorBrush x:Key="AppMutedFill" Color="#1F8A94A6" />
       <SolidColorBrush x:Key="AppMutedText" Color="#9AA4B2" />
+      <SolidColorBrush x:Key="AppMergedFill" Color="#2BA371F7" />
+      <SolidColorBrush x:Key="AppMergedText" Color="#BC9CFA" />
 
       <SolidColorBrush x:Key="AppSelection" Color="#4D4C8DF6" />
     </ResourceDictionary>

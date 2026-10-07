@@ -110,7 +110,8 @@ public sealed class FileNavigationTests : IDisposable
     /// <summary>The Repositories tab is inert in these tests; it just has to exist.</summary>
     private static RepositoriesViewModel Repositories(ISettingsService settings) =>
         new(settings, new StubRepositoryStatus(), new StubGitCommands(), new StubFolderPicker(),
-            new RoslynExpressionEvaluator(), new StubClipboard(), new RecordingEditorService());
+            new RoslynExpressionEvaluator(), new StubClipboard(), new RecordingEditorService(),
+            new FakeBranchInfo(), new FakeGitHubCli());
 
     private sealed class StubRepositoryStatus : IRepositoryStatusService
     {
@@ -176,6 +177,13 @@ public sealed class FileNavigationTests : IDisposable
 
     private sealed class StubGitCommands : IGitCommandService
     {
+
+        public System.Threading.Tasks.Task<GitCommandResult> DeleteBranchAsync(
+
+            string workingDirectory, string branch, bool force, System.Threading.CancellationToken ct = default) =>
+
+            System.Threading.Tasks.Task.FromResult(new GitCommandResult(true, $"Deleted branch {branch}."));
+
         public Task<GitCommandResult> PullMainAsync(
             string workingDirectory, string? mainBranch, string? currentBranch, CancellationToken ct = default) =>
             Task.FromResult(new GitCommandResult(true, "up to date"));

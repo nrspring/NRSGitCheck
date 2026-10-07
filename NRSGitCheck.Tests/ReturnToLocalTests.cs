@@ -161,7 +161,7 @@ public sealed class ReturnToLocalTests : IDisposable
             new RepositoriesViewModel(
                 settings, new StubRepositoryStatus(), new RecordingGitCommands(),
                 new StubFolderPicker(), new RoslynExpressionEvaluator(), new StubClipboard(),
-                new RecordingEditorService()));
+                new RecordingEditorService(), new FakeBranchInfo(), new FakeGitHubCli()));
 
         await vm.InitializeAsync();
         return vm;
@@ -169,6 +169,13 @@ public sealed class ReturnToLocalTests : IDisposable
 
     private sealed class RecordingGitCommands : IGitCommandService
     {
+
+        public System.Threading.Tasks.Task<GitCommandResult> DeleteBranchAsync(
+
+            string workingDirectory, string branch, bool force, System.Threading.CancellationToken ct = default) =>
+
+            System.Threading.Tasks.Task.FromResult(new GitCommandResult(true, $"Deleted branch {branch}."));
+
         public List<string> CheckedOut { get; } = new();
         public bool CheckoutSucceeds { get; init; } = true;
 

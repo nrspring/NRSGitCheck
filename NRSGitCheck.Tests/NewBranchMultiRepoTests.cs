@@ -172,7 +172,9 @@ public sealed class NewBranchMultiRepoTests
             new StubFolderPicker(),
             new RoslynExpressionEvaluator(),
             new StubClipboard(),
-            new RecordingEditorService());
+            new RecordingEditorService(),
+            new FakeBranchInfo(),
+            new FakeGitHubCli());
 
         foreach (var row in repositories.Repositories)
             row.Apply(ValidStatus(row.Path));
@@ -188,6 +190,13 @@ public sealed class NewBranchMultiRepoTests
 
     private sealed class RecordingGitCommands : IGitCommandService
     {
+
+        public System.Threading.Tasks.Task<GitCommandResult> DeleteBranchAsync(
+
+            string workingDirectory, string branch, bool force, System.Threading.CancellationToken ct = default) =>
+
+            System.Threading.Tasks.Task.FromResult(new GitCommandResult(true, $"Deleted branch {branch}."));
+
         public List<(string Path, string Branch)> Created { get; } = new();
         public HashSet<string> RefusePaths { get; } = new();
 

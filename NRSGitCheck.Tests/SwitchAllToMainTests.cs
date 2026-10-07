@@ -123,6 +123,13 @@ public sealed class SwitchAllToMainTests
 
     private sealed class RecordingGitCommands : IGitCommandService
     {
+
+        public System.Threading.Tasks.Task<GitCommandResult> DeleteBranchAsync(
+
+            string workingDirectory, string branch, bool force, System.Threading.CancellationToken ct = default) =>
+
+            System.Threading.Tasks.Task.FromResult(new GitCommandResult(true, $"Deleted branch {branch}."));
+
         public List<(string Path, string Branch)> CheckedOut { get; } = new();
         public string? Refuse { get; set; }
 
@@ -219,7 +226,7 @@ public sealed class SwitchAllToMainTests
 
             Owner = new RepositoriesViewModel(
                 settings, Statuses, Git, new StubFolderPicker(), new StubEvaluator(), new StubClipboard(),
-                new RecordingEditorService());
+                new RecordingEditorService(), new FakeBranchInfo(), new FakeGitHubCli());
 
             for (var i = 0; i < initial.Length; i++)
                 Owner.Repositories[i].Apply(initial[i]);

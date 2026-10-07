@@ -211,7 +211,7 @@ public sealed class EditorTests
 
             Owner = new RepositoriesViewModel(
                 settings, new StubStatusService(), new StubGitCommands(), new StubFolderPicker(),
-                new StubEvaluator(), new StubClipboard(), Editor);
+                new StubEvaluator(), new StubClipboard(), Editor, new FakeBranchInfo(), new FakeGitHubCli());
 
             Row = Owner.Repositories.Single();
             Row.Apply(Valid());
@@ -236,6 +236,13 @@ public sealed class EditorTests
 
     private sealed class StubGitCommands : IGitCommandService
     {
+
+        public System.Threading.Tasks.Task<GitCommandResult> DeleteBranchAsync(
+
+            string workingDirectory, string branch, bool force, System.Threading.CancellationToken ct = default) =>
+
+            System.Threading.Tasks.Task.FromResult(new GitCommandResult(true, $"Deleted branch {branch}."));
+
         public System.Threading.Tasks.Task<GitCommandResult> PullMainAsync(
             string workingDirectory, string? mainBranch, string? currentBranch,
             System.Threading.CancellationToken ct = default) =>

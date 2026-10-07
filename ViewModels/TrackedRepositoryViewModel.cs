@@ -484,6 +484,12 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
 
     // --- Row actions --------------------------------------------------------
 
+    private bool CanShowBranches() => IsValid;
+
+    /// <summary>Opens the list of this repository's local branches.</summary>
+    [RelayCommand(CanExecute = nameof(CanShowBranches))]
+    private void ShowBranches() => _owner.BeginBranchList(this);
+
     private bool CanCreateBranch() => !IsBusy && IsValid;
 
     /// <summary>Opens the create-branch dialog for just this repository.</summary>
@@ -540,6 +546,7 @@ public partial class TrackedRepositoryViewModel : ViewModelBase
         SwitchToMainCommand.NotifyCanExecuteChanged();
         PullMainCommand.NotifyCanExecuteChanged();
         NewBranchCommand.NotifyCanExecuteChanged();
+        ShowBranchesCommand.NotifyCanExecuteChanged();
         OpenInEditorCommand.NotifyCanExecuteChanged();
         CommitChangesCommand.NotifyCanExecuteChanged();
         DiscardChangesCommand.NotifyCanExecuteChanged();

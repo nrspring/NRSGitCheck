@@ -5,7 +5,15 @@ using NRSGitCheck.Models;
 namespace NRSGitCheck.Services;
 
 /// <summary>Outcome of a Git command, with a message suitable for the status bar.</summary>
-public sealed record GitCommandResult(bool Success, string Message);
+public sealed record GitCommandResult(bool Success, string Message)
+{
+    /// <summary>
+    /// A safe branch delete Git refused because the branch has commits that are not
+    /// in its upstream or HEAD. Only a force delete would remove it.
+    /// </summary>
+    public bool IsNotFullyMerged =>
+        !Success && Message.Contains("not fully merged", System.StringComparison.OrdinalIgnoreCase);
+}
 
 /// <summary>
 /// The one place the application is allowed to *write* to a repository. Kept apart
@@ -82,4 +90,15 @@ public interface IGitCommandService
     /// </summary>
     Task<GitCommandResult> DiscardChangesAsync(
         string workingDirectory, bool deleteUntrackedFiles, CancellationToken ct = default);
+
+    /// <summary>
+    /// Deletes a local branch. Without <paramref name="force"/> this is
+    /// <c>git branch -d</c>, which Git refuses for a branch whose commits are not in
+    /// its upstream or HEAD (see <see cref="GitCommandResult.IsNotFullyMerged"/>);
+    /// with it, <c>git branch -D</c>, which deletes regardless. Either way only the
+    /// local branch goes — nothing on the remote is touched — and Git's message,
+    /// which names the commit the branch pointed at, comes back so it can be recreated.
+    /// </summary>
+    Task<GitCommandResult> DeleteBranchAsync(
+        string workingDirectory, string branch, bool force, CancellationToken ct = default);
 }

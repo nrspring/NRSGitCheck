@@ -56,6 +56,8 @@ public partial class App : Application
         services.AddSingleton<IFolderPickerService, FolderPickerService>();
         services.AddSingleton<IClipboardService, ClipboardService>();
         services.AddSingleton<IEditorService, VsCodeService>();
+        services.AddSingleton<IBranchInfoService, BranchInfoService>();
+        services.AddSingleton<IGitHubCliService, GitHubCliService>();
 
         // Views
         services.AddTransient<MainWindow>();

@@ -24,6 +24,10 @@ public partial class RepositoriesViewModel : ViewModelBase
     private readonly IFolderPickerService _folderPicker;
     private readonly IClipboardService _clipboard;
     private readonly IEditorService _editor;
+    private readonly IGitHubCliService _gitHub;
+
+    /// <summary>The latest GitHub CLI check; branch lists wait on it for PR status.</summary>
+    private Task<GitHubCliStatus>? _gitHubCheck;
 
     /// <summary>Nesting count for in-flight operations, so overlapping rows keep the tab busy.</summary>
     private int _operationDepth;
@@ -38,7 +42,9 @@ public partial class RepositoriesViewModel : ViewModelBase
         IFolderPickerService folderPicker,
         IExpressionEvaluator evaluator,
         IClipboardService clipboard,
-        IEditorService editor)
+        IEditorService editor,
+        IBranchInfoService branchInfo,
+        IGitHubCliService gitHub)
     {
         _settings = settings;
         _statusService = statusService;
@@ -46,6 +52,7 @@ public partial class RepositoriesViewModel : ViewModelBase
         _folderPicker = folderPicker;
         _clipboard = clipboard;
         _editor = editor;
+        _gitHub = gitHub;
 
         NewBranch = new NewBranchViewModel(settings, evaluator, gitCommands);
         NewBranch.Created += OnBranchCreated;
@@ -59,6 +66,10 @@ public partial class RepositoriesViewModel : ViewModelBase
         Discard = new DiscardChangesViewModel();
         Discard.Discarded += OnWorkingTreeChanged;
         Discard.Failed += ReportError;
+
+        BranchList = new BranchListViewModel(branchInfo, gitHub, gitCommands);
+        BranchList.Deleted += OnWorkingTreeChanged;
+        BranchList.Failed += ReportError;
 
         foreach (var tracked in _settings.Settings.TrackedRepositories)
             Repositories.Add(CreateRow(tracked));
@@ -77,6 +88,13 @@ public partial class RepositoriesViewModel : ViewModelBase
 
     /// <summary>The discard confirmation, opened from the same pill.</summary>
     public DiscardChangesViewModel Discard { get; }
+
+    /// <summary>The branch list, opened from a row's Branches button.</summary>
+    public BranchListViewModel BranchList { get; }
+
+    /// <summary>Opens the branch list for one repository.</summary>
+    public void BeginBranchList(TrackedRepositoryViewModel repository) =>
+        _ = BranchList.OpenAsync(repository, _gitHubCheck ?? CheckGitHubCliAsync());
 
     /// <summary>Opens the commit dialog for one repository.</summary>
     public void BeginCommit(TrackedRepositoryViewModel repository) => Commit.Open(repository);
@@ -179,8 +197,67 @@ public partial class RepositoriesViewModel : ViewModelBase
             return;
 
         _loaded = true;
+
+        // Started first and not awaited: the status sweep does not need it, and a
+        // branch list opened meanwhile waits on the same task.
+        _ = CheckGitHubCliAsync();
         await RefreshAllAsync();
     }
+
+    // --- GitHub CLI ---------------------------------------------------------
+
+    /// <summary>Whether gh is installed and signed in, which decides if branch lists show PRs.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowGitHubBanner), nameof(GitHubBannerText))]
+    private GitHubCliStatus _gitHubStatus = GitHubCliStatus.Unknown;
+
+    /// <summary>Hidden for this session once closed; "Check again" brings it back if still needed.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowGitHubBanner))]
+    private bool _isGitHubBannerDismissed;
+
+    public bool ShowGitHubBanner =>
+        !IsGitHubBannerDismissed &&
+        GitHubStatus is GitHubCliStatus.NotInstalled or GitHubCliStatus.NotSignedIn;
+
+    public string GitHubBannerText => GitHubStatus == GitHubCliStatus.NotSignedIn
+        ? "The GitHub CLI is installed but not signed in. Run gh auth login to see pull request status in the branch lists."
+        : "The GitHub CLI (gh) was not found. Install it from cli.github.com and run gh auth login to see pull request status in the branch lists. Everything else works without it.";
+
+    /// <summary>Runs a fresh check and remembers it for the next branch list.</summary>
+    public Task<GitHubCliStatus> CheckGitHubCliAsync()
+    {
+        _gitHubCheck = RunGitHubCheckAsync();
+        return _gitHubCheck;
+    }
+
+    private async Task<GitHubCliStatus> RunGitHubCheckAsync()
+    {
+        GitHubCliStatus status;
+        try
+        {
+            status = await _gitHub.CheckAsync();
+        }
+        catch
+        {
+            status = GitHubCliStatus.NotInstalled;
+        }
+
+        GitHubStatus = status;
+        return status;
+    }
+
+    [RelayCommand]
+    private async Task RecheckGitHubCli()
+    {
+        IsGitHubBannerDismissed = false;
+        var status = await CheckGitHubCliAsync();
+        if (status == GitHubCliStatus.Available)
+            Report("GitHub CLI found and signed in. Branch lists now show pull requests.");
+    }
+
+    [RelayCommand]
+    private void DismissGitHubBanner() => IsGitHubBannerDismissed = true;
 
     [RelayCommand(CanExecute = nameof(CanRunBulkOperation))]
     private Task RefreshAll() => RefreshAllAsync();

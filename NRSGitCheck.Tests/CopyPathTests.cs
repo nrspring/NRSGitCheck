@@ -66,7 +66,9 @@ public sealed class CopyPathTests
             new StubFolderPicker(),
             new RoslynExpressionEvaluator(),
             clipboard,
-            new RecordingEditorService());
+            new RecordingEditorService(),
+            new FakeBranchInfo(),
+            new FakeGitHubCli());
     }
 
     private sealed class StubClipboard : IClipboardService
@@ -123,6 +125,13 @@ public sealed class CopyPathTests
         public Task<GitCommandResult> DiscardChangesAsync(
             string workingDirectory, bool deleteUntrackedFiles, CancellationToken ct = default) =>
             Task.FromResult(new GitCommandResult(true, "discarded"));
+
+
+        public Task<GitCommandResult> DeleteBranchAsync(
+
+            string workingDirectory, string branch, bool force, CancellationToken ct = default) =>
+
+            Task.FromResult(new GitCommandResult(true, $"Deleted branch {branch}."));
     }
 
     private sealed class StubSettings : ISettingsService

@@ -205,6 +205,13 @@ public sealed class PushTests : IDisposable
 
     private sealed class RecordingGitCommands : IGitCommandService
     {
+
+        public System.Threading.Tasks.Task<GitCommandResult> DeleteBranchAsync(
+
+            string workingDirectory, string branch, bool force, System.Threading.CancellationToken ct = default) =>
+
+            System.Threading.Tasks.Task.FromResult(new GitCommandResult(true, $"Deleted branch {branch}."));
+
         public List<(string Path, string Branch, bool SetUpstream)> Pushes { get; } = new();
         public string? PushRefusal { get; set; }
 
@@ -305,7 +312,7 @@ public sealed class PushTests : IDisposable
 
             Owner = new RepositoriesViewModel(
                 settings, Statuses, Git, new StubFolderPicker(), new StubEvaluator(), new StubClipboard(),
-                new RecordingEditorService());
+                new RecordingEditorService(), new FakeBranchInfo(), new FakeGitHubCli());
 
             Statuses.Next = initial;
             Row = Owner.Repositories.Single();

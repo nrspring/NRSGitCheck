@@ -212,6 +212,23 @@ public sealed class GitCommandService : IGitCommandService
             : clean;
     }
 
+    public async Task<GitCommandResult> DeleteBranchAsync(
+        string workingDirectory, string branch, bool force, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(workingDirectory))
+            return new GitCommandResult(false, "No repository path.");
+        if (string.IsNullOrWhiteSpace(branch))
+            return new GitCommandResult(false, "No branch was selected.");
+
+        var delete = await RunAsync(workingDirectory, ct, "branch", force ? "-D" : "-d", branch);
+
+        // Git's "Deleted branch x (was 1a2b3c4)." keeps the commit id, which is how
+        // the branch would be brought back.
+        return delete.Success && delete.Message.Length == 0
+            ? new GitCommandResult(true, $"Deleted {branch}.")
+            : delete;
+    }
+
     /// <summary>Recognizes Git's refusal to move a ref backwards or sideways.</summary>
     private static bool IsNonFastForward(string message) =>
         message.Contains("non-fast-forward", StringComparison.OrdinalIgnoreCase) ||
