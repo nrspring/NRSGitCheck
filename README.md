@@ -1,21 +1,29 @@
 # NRSGitCheck
 
-A fast, **read-only** desktop viewer for your Git changes. Open a repository, pick what
-to compare against, and browse the diff with syntax highlighting, word-level change
-emphasis, side-by-side or inline layouts, and progressive rendering that stays smooth
-even on very large files.
+A fast desktop viewer for your Git changes, plus a dashboard for every repository you
+work in. Open a repository, pick what to compare against, and browse the diff with
+syntax highlighting, word-level change emphasis, side-by-side or inline layouts, and
+progressive rendering that stays smooth even on very large files.
 
-NRSGitCheck reads your repository and never modifies your work. The only things it
-writes are ones you press a button for: **Pull main**, which fetches and
-fast-forwards your main branch (fast-forward only, and it leaves your working tree
-untouched unless main is checked out), and the branch switches and branch creation on
-the **Repositories** tab, which are plain checkouts — Git itself refuses any switch
-that would overwrite uncommitted work. Nothing is ever stashed, merged, or discarded
-on your behalf.
+Browsing a diff is **read-only**. Everything that writes to a repository is a button
+you press, and each one is a plain Git command that lets Git refuse when work would be
+lost:
+
+- **Pull main** fetches and fast-forwards your main branch — fast-forward only, and
+  your working tree is untouched unless main is checked out.
+- **Review PR** fetches a pull request onto a local `pr-N` branch and checks it out.
+- On the **Repositories** tab: switching and creating branches, committing, pushing
+  (never forced), discarding changes (behind a confirmation that shows what goes),
+  and deleting local branches (a safe delete first; a force delete only if you confirm
+  it).
+
+Nothing is ever stashed, merged, rebased, or force-pushed on your behalf.
 
 ![Side-by-side diff with syntax and word-level highlighting](docs/screenshots/side-by-side.png)
 
 ## Features
+
+### Reviewing changes
 
 - **Compare against anything** — uncommitted changes, any commit back to the start of
   your branch, everything on the branch versus `main`, another local branch, or the
@@ -23,20 +31,10 @@ on your behalf.
 - **Commit picker** — a dropdown of the commits on your branch (newest first, back to
   the branch point) so you can widen the diff one commit at a time.
 - **Pull main** — fetch and fast-forward `main` without leaving your feature branch.
-- **Repositories tab** — keep a list of the repositories you work in and see, at a
-  glance, which branch each one is on and whether it has uncommitted changes or
-  unpushed commits. Switch any of them to another local branch or to `main`, pull
-  `main` in one, or pull `main` in every repository that currently has `main` (or
-  `master`) checked out. The list is stored with your settings, so it survives restarts.
-- **New branches from a pattern** — define a shape once, such as
-  `nrs/{TodaysDate}-sa-{SANumber}-{description}`, and every `{placeholder}` becomes a
-  field in the New branch dialog. Each field can be pre-filled by a small C# expression
-  you write — `DateTime.Now.ToString("yyyyMMdd")`, say — which is compiled and run as
-  you type it, so a typo is reported where you wrote it rather than when you need a
-  branch (see [Branch name patterns](#branch-name-patterns)).
 - **Review a pull request** — paste a PR link, and it is fetched onto a local
   `pr-N` branch, checked out, and compared against `main` — the same diff GitHub
-  shows on the PR's Files-changed tab.
+  shows on the PR's Files-changed tab. **Local** takes you back to the branch you came
+  from.
 - **Side-by-side and inline diffs** — toggle layouts instantly. Side-by-side panes are
   equal-width, each with their own horizontal scrollbar, and scroll in sync.
 - **Syntax highlighting** for the diffed file (TextMate grammars), layered with
@@ -57,6 +55,55 @@ on your behalf.
   either end. Plus a help overlay.
 - **Light / dark / system** theming, and it reopens your last repository on launch.
 
+### Repositories tab
+
+![The Repositories tab](docs/screenshots/repositories.png)
+
+Keep a list of the repositories you work in and see, at a glance, which branch each one
+is on and whether it has uncommitted changes, unpushed commits, commits waiting on the
+remote, or a branch that has never been pushed. The list is stored with your settings,
+so it survives restarts.
+
+- **Per repository** — switch to any local branch or straight to `main`, pull `main`,
+  push the checked-out branch (publishing it to `origin` the first time), create a
+  branch, open the folder in Visual Studio Code, or copy its path.
+- **Uncommitted changes** — hover the badge to see which files changed; click it to
+  **commit** everything (`git add -A`, then commit with your message) or **discard**
+  it. Discarding first shows the files that will be reverted; deleting untracked files
+  is a separate opt-in, and ignored files are never touched.
+- **Across repositories** — **Pull all on main** pulls every repository that has `main`
+  (or `master`) checked out. **Switch all to main** checks out `main` in every
+  repository on another branch, skipping any with uncommitted changes rather than
+  touching them. Tick several repositories to create the **same new branch in all of
+  them** at once.
+- **New branches from a pattern** — define a shape once, such as
+  `nrs/{TodaysDate}-sa-{SANumber}-{description}`, and every `{placeholder}` becomes a
+  field in the New branch dialog. Each field can be pre-filled by a small C# expression
+  you write — `DateTime.Now.ToString("yyyyMMdd")`, say — which is compiled and run as
+  you type it, so a typo is reported where you wrote it rather than when you need a
+  branch (see [Branch name patterns](#branch-name-patterns)). Before the name is asked
+  for, you are shown which branch each new branch will start from.
+
+### Branch list
+
+![The branch list, with pull request status and a force-delete prompt](docs/screenshots/branches.png)
+
+**Branches…** on any repository lists its local branches, newest commit first:
+
+- **Last commit** — when the branch last had a commit ("3 days ago"; hover for the
+  exact time).
+- **Pull request** — the PR opened from that branch and whether it is **Open**,
+  **Draft**, **Merged**, or **Closed**; hover for its title and link. A `pr-N` review
+  branch is matched to PR N. This needs the [GitHub CLI](#github-cli-optional).
+- **What Git can tell on its own** — **in main** when every commit is already in `main`,
+  and **remote gone** when the branch it tracked has been deleted from the remote
+  (usually because its PR was merged). These work without the GitHub CLI.
+- **Delete** — removes the branch from this clone only; the branch on GitHub is left
+  alone. It runs a safe `git branch -d` first. If Git refuses because the branch is not
+  fully merged — which is normal after a squash or rebase merge — you are told why and
+  asked whether to **Delete anyway**. The checked-out branch and `main` cannot be
+  deleted.
+
 ## Screenshots
 
 **Dark theme**
@@ -71,13 +118,22 @@ on your behalf.
 | --- | --- |
 | ![Side-by-side, light](docs/screenshots/side-by-side-light.png) | ![Inline, light](docs/screenshots/inline-light.png) |
 
+**Repositories**
+
+| Repositories tab | Branch list |
+| --- | --- |
+| ![Repositories tab](docs/screenshots/repositories.png) | ![Branch list](docs/screenshots/branches.png) |
+
 ## Getting started
 
 ### Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- [Git](https://git-scm.com/) on your `PATH` — the write actions run the `git` CLI
 - Windows (the app is built as a Windows desktop app; the underlying
   [Avalonia](https://avaloniaui.net/) UI toolkit is cross-platform)
+- Optional: the [GitHub CLI](#github-cli-optional), for pull request status in the
+  branch list
 
 ### Build & run
 
@@ -97,6 +153,27 @@ dotnet build -c Release
 ```bash
 dotnet test
 ```
+
+### GitHub CLI (optional)
+
+Pull request status in the branch list comes from the [GitHub CLI](https://cli.github.com/)
+(`gh`), using whoever is signed in to it — the app never handles a GitHub token itself.
+Install it and sign in once:
+
+```bash
+winget install --id GitHub.cli
+```
+
+```bash
+gh auth login
+```
+
+When the Repositories tab opens it looks for `gh`. If it is missing or not signed in, a
+banner says so; everything else on the tab works as normal, and the branch list shows
+what Git alone can tell. Press **Check again** after installing or signing in — no
+restart needed.
+
+![Banner shown when the GitHub CLI is not installed](docs/screenshots/github-cli-banner.png)
 
 ## Usage
 
@@ -119,7 +196,10 @@ dotnet test
 6. Press **Review PR…** and paste a pull request link (or just its number) to fetch
    it onto a local `pr-N` branch and switch to it. Your working tree must be clean,
    since checking out the PR replaces it. A link belonging to a different repository
-   is rejected rather than fetched into this one.
+   is rejected rather than fetched into this one. Press **Local** when you are done to
+   check out the branch you came from.
+7. Open the **Repositories** tab and press **Add repository…** to start tracking the
+   repositories you work in.
 
 ### Keyboard shortcuts
 
@@ -129,6 +209,7 @@ dotnet test
 | Previous changed section | `P` · `K` · `Alt+↑` |
 | Next file | `Ctrl+↓` · `]` |
 | Previous file | `Ctrl+↑` · `[` |
+| Copy selected diff lines | `Ctrl+C` |
 | Toggle diff layout | `Ctrl+L` |
 | Toggle theme | `Ctrl+T` |
 | Open repository | `Ctrl+O` |
@@ -183,9 +264,10 @@ dialogs, and a long-running one is abandoned after three seconds.
 - [.NET 10](https://dotnet.microsoft.com/) / C#
 - [Avalonia](https://avaloniaui.net/) — cross-platform UI
 - [LibGit2Sharp](https://github.com/libgit2/libgit2sharp) — read-only Git access
-- The `git` CLI — used for the write actions (**Pull main**, PR checkout, branch
-  switches and creation), so your existing credential helper handles authentication
-  and the app never touches your secrets
+- The `git` CLI — used for every write action (pull, PR checkout, branch switches,
+  creation and deletion, commit, push, discard), so your existing credential helper
+  handles authentication and the app never touches your secrets
+- The [GitHub CLI](https://cli.github.com/) (optional) — pull request status, read-only
 - [Roslyn scripting](https://github.com/dotnet/roslyn) — compiles and runs the C#
   expressions behind branch-name fields
 - [TextMateSharp](https://github.com/danipen/TextMateSharp) — syntax highlighting
@@ -195,9 +277,9 @@ dialogs, and a long-running one is abandoned after three seconds.
 ## Project layout
 
 ```
-Models/        Domain types (diff documents, file changes, settings)
-Services/      Git access, diff engine, syntax highlighting, settings, theming
-ViewModels/    MVVM view models for the window and the diff view
+Models/        Domain types (diff documents, file changes, repository and branch state, settings)
+Services/      Git and GitHub CLI access, diff engine, syntax highlighting, settings, theming
+ViewModels/    MVVM view models for the window, the diff view, and the Repositories tab
 Views/         Avalonia XAML views and code-behind
 Converters/    Value converters for diff rendering
 NRSGitCheck.Tests/  xUnit test suite
