@@ -65,7 +65,7 @@
     <Border DockPanel.Dock="Top"
             IsVisible="{Binding ShowGitHubBanner}"
             Background="{DynamicResource AppWarnFill}"
-            Padding="16,9">
+            Padding="16,3">
       <Grid ColumnDefinitions="*,Auto,Auto">
         <TextBlock Grid.Column="0"
                    Text="{Binding GitHubBannerText}"
@@ -73,9 +73,12 @@
                    FontSize="12"
                    TextWrapping="Wrap"
                    VerticalAlignment="Center" />
+        <!-- Compact controls keep the strip one text line tall. -->
         <Button Grid.Column="1"
                 Content="Check again"
                 Command="{Binding RecheckGitHubCliCommand}"
+                Padding="8,1"
+                FontSize="11"
                 Margin="12,0,0,0"
                 VerticalAlignment="Center"
                 ToolTip.Tip="Look for gh again — no restart needed after installing it or signing in" />
@@ -83,7 +86,8 @@
                 Classes="ghost"
                 Content="✕"
                 Command="{Binding DismissGitHubBannerCommand}"
-                Padding="9,3"
+                Padding="6,1"
+                FontSize="11"
                 Margin="6,0,0,0"
                 VerticalAlignment="Center"
                 ToolTip.Tip="Hide this until the app is restarted" />

@@ -221,8 +221,8 @@ public partial class RepositoriesViewModel : ViewModelBase
         GitHubStatus is GitHubCliStatus.NotInstalled or GitHubCliStatus.NotSignedIn;
 
     public string GitHubBannerText => GitHubStatus == GitHubCliStatus.NotSignedIn
-        ? "The GitHub CLI is installed but not signed in. Run gh auth login to see pull request status in the branch lists."
-        : "The GitHub CLI (gh) was not found. Install it from cli.github.com and run gh auth login to see pull request status in the branch lists. Everything else works without it.";
+        ? "GitHub CLI isn't signed in — run gh auth login to see pull requests in branch lists."
+        : "GitHub CLI (gh) not found — install it from cli.github.com to see pull requests in branch lists.";
 
     /// <summary>Runs a fresh check and remembers it for the next branch list.</summary>
     public Task<GitHubCliStatus> CheckGitHubCliAsync()

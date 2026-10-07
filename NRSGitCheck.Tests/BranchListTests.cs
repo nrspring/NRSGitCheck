@@ -216,7 +216,7 @@ public sealed class BranchListTests : IDisposable
         await f.Owner.EnsureLoadedAsync();
 
         Assert.True(f.Owner.ShowGitHubBanner);
-        Assert.Contains("was not found", f.Owner.GitHubBannerText);
+        Assert.Contains("not found", f.Owner.GitHubBannerText);
     }
 
     [Fact]
@@ -228,7 +228,7 @@ public sealed class BranchListTests : IDisposable
         await f.Owner.EnsureLoadedAsync();
 
         Assert.True(f.Owner.ShowGitHubBanner);
-        Assert.Contains("not signed in", f.Owner.GitHubBannerText);
+        Assert.Contains("isn't signed in", f.Owner.GitHubBannerText);
     }
 
     [Fact]
